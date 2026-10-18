@@ -1,10 +1,19 @@
 // GiveGrid PHP Client Application
-// Connects with the PHP backend (api.php) backed by MySQL in Laragon
+// Full authentication, Admin user creation & Laragon MySQL integration
 
 let tasks = [];
 let selectedFilter = 'All';
 let shownCount = 12;
 const pageSize = 12;
+
+// Auth State
+let authToken = localStorage.getItem('givegrid_auth_token') || null;
+let currentUser = null;
+try {
+  currentUser = JSON.parse(localStorage.getItem('givegrid_auth_user'));
+} catch (e) {
+  currentUser = null;
+}
 
 const grid = document.querySelector('#taskGrid');
 const taskDialog = document.querySelector('#taskDialog');
@@ -46,7 +55,122 @@ function showToast(message) {
   toastTimer = setTimeout(() => toast.classList.remove('show'), 2800);
 }
 
-// API Helpers
+// -----------------------------------------------------------------------------
+// AUTHENTICATION & SESSION MANAGEMENT
+// -----------------------------------------------------------------------------
+
+function updateAuthUI() {
+  const loginBtn = document.querySelector('#loginButton');
+  const authStatusBadge = document.querySelector('#authStatusBadge');
+  const navUserName = document.querySelector('#navUserName');
+  const authGate = document.querySelector('#authGateContainer');
+  const dashboard = document.querySelector('#contributorDashboard');
+
+  if (currentUser && authToken) {
+    // User is logged in / authorized
+    if (loginBtn) loginBtn.style.display = 'none';
+    if (authStatusBadge) {
+      authStatusBadge.style.display = 'flex';
+      navUserName.textContent = `👤 ${currentUser.name} (${currentUser.role})`;
+    }
+    if (authGate) authGate.style.display = 'none';
+    if (dashboard) dashboard.style.display = 'block';
+
+    const accountEmailInput = document.querySelector('#accountEmail');
+    if (accountEmailInput) {
+      accountEmailInput.value = currentUser.email;
+    }
+    const roleBadge = document.querySelector('#authRoleBadge');
+    if (roleBadge) {
+      roleBadge.textContent = currentUser.role === 'admin' ? 'Administrator' : 'Authorized Contributor';
+    }
+    renderAccount();
+  } else {
+    // Not authorized / logged out
+    if (loginBtn) loginBtn.style.display = 'inline-flex';
+    if (authStatusBadge) authStatusBadge.style.display = 'none';
+    if (authGate) authGate.style.display = 'flex';
+    if (dashboard) dashboard.style.display = 'none';
+  }
+}
+
+// Handle Login / Authorization Form ("authorize me" button)
+const loginForm = document.querySelector('#loginForm');
+if (loginForm) {
+  loginForm.addEventListener('submit', async event => {
+    event.preventDefault();
+    const email = document.querySelector('#loginEmailInput').value.trim();
+    const password = document.querySelector('#loginPasswordInput').value;
+
+    const submitBtn = document.querySelector('#authSubmitBtn');
+    if (submitBtn) {
+      submitBtn.disabled = true;
+      submitBtn.innerHTML = 'authorizing...';
+    }
+
+    try {
+      const res = await fetch('api.php?action=login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email, password })
+      });
+
+      const data = await res.json();
+
+      if (!res.ok) {
+        showToast(data.error || 'Authorization failed. Check your credentials.');
+        return;
+      }
+
+      authToken = data.token;
+      currentUser = data.user;
+      localStorage.setItem('givegrid_auth_token', authToken);
+      localStorage.setItem('givegrid_auth_user', JSON.stringify(currentUser));
+      localStorage.setItem('givegrid_account_email', currentUser.email);
+
+      updateAuthUI();
+      loginDialog?.close();
+      loginForm.reset();
+      showToast(`Welcome, ${currentUser.name}! You are authorized.`);
+    } catch (err) {
+      console.error(err);
+      showToast('Error communicating with database.');
+    } finally {
+      if (submitBtn) {
+        submitBtn.disabled = false;
+        submitBtn.innerHTML = 'authorize me <span>→</span>';
+      }
+    }
+  });
+}
+
+// Handle Logout
+document.querySelector('#logoutButton')?.addEventListener('click', async () => {
+  try {
+    if (authToken) {
+      await fetch(`api.php?action=logout&token=${encodeURIComponent(authToken)}`);
+    }
+  } catch (e) {
+    // Ignore network error on logout
+  }
+
+  authToken = null;
+  currentUser = null;
+  localStorage.removeItem('givegrid_auth_token');
+  localStorage.removeItem('givegrid_auth_user');
+
+  updateAuthUI();
+  showToast('You have been logged out.');
+});
+
+// Trigger authorization modal from buttons
+document.querySelector('#loginButton')?.addEventListener('click', () => loginDialog?.showModal());
+document.querySelector('#gateAuthBtn')?.addEventListener('click', () => loginDialog?.showModal());
+
+// -----------------------------------------------------------------------------
+// TASKS CATALOG
+// -----------------------------------------------------------------------------
+
 async function fetchTasks() {
   try {
     const sort = document.querySelector('#sortSelect')?.value || 'recommended';
@@ -60,7 +184,6 @@ async function fetchTasks() {
   }
 }
 
-// Render Tasks Grid
 function renderTasks() {
   if (!grid) return;
   const sort = document.querySelector('#sortSelect')?.value || 'recommended';
@@ -113,9 +236,11 @@ function renderTasks() {
   });
 }
 
-// Open Task Details Modal
+// Open Task Details Modal (Checks Authorization)
 function openTask(task) {
   if (!dialogContent || !taskDialog) return;
+
+  const isAuth = !!(currentUser && authToken);
 
   dialogContent.innerHTML = `
     <div class="eyebrow"><span class="pulse"></span> ${escapeHtml(task.category.toUpperCase())} · REMOTE</div>
@@ -126,80 +251,78 @@ function openTask(task) {
       <span>◇ ${escapeHtml(task.level || 'All levels')}</span>
       <span>$${task.pay} / task</span>
     </div>
-    <form id="submissionForm" class="submission-form">
-      <h3>Complete this task</h3>
-      <p>Submit your response for an admin to review and grade in the PHP MySQL database.</p>
-      <label>Your name
-        <input name="name" required maxlength="80" placeholder="Your name">
-      </label>
-      <label>Email for your contributor account
-        <input name="email" type="email" required maxlength="160" placeholder="you@example.com" value="${escapeHtml(localStorage.getItem('givegrid_account_email') || '')}">
-      </label>
-      <label>Your task response
-        <textarea name="response" required minlength="10" maxlength="5000" rows="6" placeholder="Write your answer or findings here…"></textarea>
-      </label>
-      <button class="button button-bright" type="submit">Submit for review <span>↗</span></button>
-    </form>
+    
+    ${!isAuth ? `
+      <div class="auth-gate-box" style="margin-top:15px; padding:20px;">
+        <p style="color:#dce5df; margin-bottom:10px;"><strong>Authorization Required:</strong> Only contributors authorized by the administrator can submit responses.</p>
+        <button class="button button-bright" id="taskModalAuthBtn" type="button">authorize me <span>→</span></button>
+      </div>
+    ` : `
+      <form id="submissionForm" class="submission-form">
+        <h3>Submit Your Response</h3>
+        <p>Logged in as: <strong style="color:var(--mint);">${escapeHtml(currentUser.name)}</strong> (${escapeHtml(currentUser.email)})</p>
+        <input type="hidden" name="name" value="${escapeHtml(currentUser.name)}">
+        <input type="hidden" name="email" value="${escapeHtml(currentUser.email)}">
+        <label>Your Task Response / Findings
+          <textarea name="response" required minlength="10" maxlength="5000" rows="6" placeholder="Write your thoughtful answer here…"></textarea>
+        </label>
+        <button class="button button-bright" type="submit">Submit for review <span>↗</span></button>
+      </form>
+    `}
   `;
 
   taskDialog.showModal();
 
-  const submissionForm = document.querySelector('#submissionForm');
-  submissionForm.addEventListener('submit', async event => {
-    event.preventDefault();
-    const formData = new FormData(event.currentTarget);
-    const payload = {
-      taskId: task.id,
-      name: formData.get('name'),
-      email: formData.get('email'),
-      response: formData.get('response')
-    };
-
-    try {
-      const res = await fetch('api.php?action=create_submission', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload)
-      });
-
-      if (!res.ok) {
-        const errorData = await res.json();
-        showToast(errorData.error || 'Submission failed.');
-        return;
-      }
-
-      taskDialog.close();
-      const email = payload.email.trim().toLowerCase();
-      localStorage.setItem('givegrid_account_email', email);
-      document.querySelector('#accountEmail').value = email;
-
-      renderAccount();
-      renderAdmin();
-      showToast('Submitted! Your work is saved to MySQL and waiting for review.');
-    } catch (err) {
-      console.error(err);
-      showToast('Error communicating with PHP server.');
-    }
+  // If unauthorized button in modal is clicked
+  document.querySelector('#taskModalAuthBtn')?.addEventListener('click', () => {
+    taskDialog.close();
+    loginDialog?.showModal();
   });
+
+  const submissionForm = document.querySelector('#submissionForm');
+  if (submissionForm) {
+    submissionForm.addEventListener('submit', async event => {
+      event.preventDefault();
+      const formData = new FormData(event.currentTarget);
+      const payload = {
+        taskId: task.id,
+        name: formData.get('name'),
+        email: formData.get('email'),
+        response: formData.get('response')
+      };
+
+      try {
+        const res = await fetch('api.php?action=create_submission', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload)
+        });
+
+        const resData = await res.json();
+        if (!res.ok) {
+          showToast(resData.error || 'Submission failed.');
+          return;
+        }
+
+        taskDialog.close();
+        renderAccount();
+        renderAdmin();
+        showToast('Submitted! Your work is saved to MySQL and waiting for review.');
+      } catch (err) {
+        console.error(err);
+        showToast('Error communicating with PHP server.');
+      }
+    });
+  }
 }
 
-// Contributor Account
-async function renderAccount() {
-  const emailInput = document.querySelector('#accountEmail');
-  const email = emailInput?.value.trim().toLowerCase() || '';
+// -----------------------------------------------------------------------------
+// CONTRIBUTOR ACCOUNT
+// -----------------------------------------------------------------------------
 
-  if (!email) {
-    document.querySelector('#accountRating').innerHTML = '—<span>/5</span>';
-    document.querySelector('#ratingNote').textContent = 'Your rating appears after an admin grades approved work.';
-    document.querySelector('#gradedCount').textContent = '0';
-    document.querySelector('#pendingCount').textContent = '0';
-    document.querySelector('#submissionLabel').textContent = 'Enter your email to see your work';
-    document.querySelector('#mySubmissions').innerHTML = '<p class="empty-state">Enter your email above to look up submitted work.</p>';
-    document.querySelector('#accountSecurityState').hidden = true;
-    document.querySelector('#verificationBadge').innerHTML = '<i></i> NOT VERIFIED';
-    document.querySelector('#verificationBadge').className = 'verification-status';
-    return;
-  }
+async function renderAccount() {
+  if (!currentUser) return;
+  const email = currentUser.email;
 
   try {
     const [accRes, subRes] = await Promise.all([
@@ -212,72 +335,89 @@ async function renderAccount() {
 
     // Verification Badge
     const badge = document.querySelector('#verificationBadge');
-    if (acc.isVerified) {
-      badge.innerHTML = '<i></i> VERIFIED CONTRIBUTOR';
-      badge.className = 'verification-status is-verified';
-    } else {
-      badge.innerHTML = '<i></i> NOT VERIFIED';
-      badge.className = 'verification-status';
+    if (badge) {
+      if (acc.isVerified) {
+        badge.innerHTML = '<i></i> VERIFIED CONTRIBUTOR';
+        badge.className = 'verification-status is-verified';
+      } else {
+        badge.innerHTML = '<i></i> NOT VERIFIED';
+        badge.className = 'verification-status';
+      }
     }
 
     // Security Notice
     const securityNotice = document.querySelector('#accountSecurityState');
-    if (acc.security && acc.security.status === 'disabled') {
-      securityNotice.hidden = false;
-      securityNotice.textContent = `Account paused: a security alert from ${acc.security.country || 'an unfamiliar country'} is under review. Submissions are temporarily disabled.`;
-    } else if (acc.security && acc.security.status === 'flagged') {
-      securityNotice.hidden = false;
-      securityNotice.textContent = `Security review pending: an unfamiliar-country alert was recorded for ${acc.security.country || 'this account'}.`;
-    } else {
-      securityNotice.hidden = true;
+    if (securityNotice) {
+      if (acc.security && acc.security.status === 'disabled') {
+        securityNotice.hidden = false;
+        securityNotice.textContent = `Account paused: a security alert from ${acc.security.country || 'an unfamiliar country'} is under review. Submissions are temporarily disabled.`;
+      } else if (acc.security && acc.security.status === 'flagged') {
+        securityNotice.hidden = false;
+        securityNotice.textContent = `Security review pending: an unfamiliar-country alert was recorded for ${acc.security.country || 'this account'}.`;
+      } else {
+        securityNotice.hidden = true;
+      }
     }
 
-    // Stats
-    document.querySelector('#accountRating').innerHTML = acc.rating !== null ? `${Number(acc.rating).toFixed(1)}<span>/5</span>` : '—<span>/5</span>';
-    document.querySelector('#ratingNote').textContent = acc.rating !== null ? 'Average rating across your approved and graded tasks.' : 'Your rating appears after an admin grades approved work.';
+    // Rating & Counts
+    const accountRatingEl = document.querySelector('#accountRating');
+    const ratingNoteEl = document.querySelector('#ratingNote');
+    if (accountRatingEl) {
+      accountRatingEl.innerHTML = acc.rating !== null ? `${Number(acc.rating).toFixed(1)}<span>/5</span>` : '—<span>/5</span>';
+    }
+    if (ratingNoteEl) {
+      ratingNoteEl.textContent = acc.rating !== null ? 'Average rating across your approved and graded tasks.' : 'Your rating appears after an admin grades approved work.';
+    }
     document.querySelector('#gradedCount').textContent = acc.gradedCount;
     document.querySelector('#pendingCount').textContent = acc.pendingCount;
     document.querySelector('#submissionLabel').textContent = `${subs.length} submission${subs.length === 1 ? '' : 's'} for ${email}`;
 
     // Submissions List
     const submissionsContainer = document.querySelector('#mySubmissions');
-    if (subs.length === 0) {
-      submissionsContainer.innerHTML = '<p class="empty-state">No submissions found for this email yet.</p>';
-    } else {
-      submissionsContainer.innerHTML = subs.map(item => `
-        <article class="submission-row">
-          <div class="submission-main">
-            <span class="submission-status status-${item.status}">
-              ${item.status === 'approved' ? 'APPROVED · GRADED' : item.status === 'pending' ? 'PENDING REVIEW' : 'REVISION REQUESTED'}
-            </span>
-            <h4>${escapeHtml(item.taskTitle)}</h4>
-            <p>${escapeHtml(item.response)}</p>
-            ${item.feedback ? `<small class="feedback-note">Admin feedback: ${escapeHtml(item.feedback)}</small>` : ''}
-          </div>
-          <div class="submission-score">
-            ${item.status === 'approved' ? `<strong>${Number(item.score).toFixed(1)}<small>/5</small></strong>` : '<span>—</span>'}
-            <small>${new Date(item.submittedAt).toLocaleDateString()}</small>
-          </div>
-        </article>
-      `).join('');
+    if (submissionsContainer) {
+      if (subs.length === 0) {
+        submissionsContainer.innerHTML = '<p class="empty-state">No submissions found for your account yet.</p>';
+      } else {
+        submissionsContainer.innerHTML = subs.map(item => `
+          <article class="submission-row">
+            <div class="submission-main">
+              <span class="submission-status status-${item.status}">
+                ${item.status === 'approved' ? 'APPROVED · GRADED' : item.status === 'pending' ? 'PENDING REVIEW' : 'REVISION REQUESTED'}
+              </span>
+              <h4>${escapeHtml(item.taskTitle)}</h4>
+              <p>${escapeHtml(item.response)}</p>
+              ${item.feedback ? `<small class="feedback-note">Admin feedback: ${escapeHtml(item.feedback)}</small>` : ''}
+            </div>
+            <div class="submission-score">
+              ${item.status === 'approved' ? `<strong>${Number(item.score).toFixed(1)}<small>/5</small></strong>` : '<span>—</span>'}
+              <small>${new Date(item.submittedAt).toLocaleDateString()}</small>
+            </div>
+          </article>
+        `).join('');
+      }
     }
   } catch (err) {
     console.error('Error rendering account:', err);
   }
 }
 
-// Admin Workspace
+// -----------------------------------------------------------------------------
+// ADMIN WORKSPACE & USER MANAGEMENT
+// -----------------------------------------------------------------------------
+
 async function renderAdmin() {
   try {
-    const [subRes, secRes] = await Promise.all([
+    const [subRes, secRes, userRes] = await Promise.all([
       fetch('api.php?action=submissions&status=pending'),
-      fetch('api.php?action=security')
+      fetch('api.php?action=security'),
+      fetch('api.php?action=admin_list_users')
     ]);
 
     const pending = await subRes.json();
     const securityAccounts = await secRes.json();
+    const users = await userRes.json();
 
-    // Review Queue
+    // 1. Review Queue
     const reviewCountEl = document.querySelector('#reviewCount');
     reviewCountEl.textContent = pending.length ? `${pending.length} submission${pending.length === 1 ? '' : 's'} waiting for review` : 'No submissions waiting';
 
@@ -317,7 +457,35 @@ async function renderAdmin() {
       `).join('');
     }
 
-    // Security Accounts
+    // 2. User Management Table
+    const userTableBody = document.querySelector('#userTableBody');
+    if (userTableBody) {
+      if (!Array.isArray(users) || users.length === 0) {
+        userTableBody.innerHTML = '<tr><td colspan="4" class="empty-state">No users registered yet.</td></tr>';
+      } else {
+        userTableBody.innerHTML = users.map(u => `
+          <tr>
+            <td>
+              <strong>${escapeHtml(u.name)}</strong><br>
+              <small style="color:#8da098; font-family:var(--mono);">${escapeHtml(u.email)}</small>
+            </td>
+            <td>
+              <span class="badge-status ${u.role === 'admin' ? 'badge-active' : ''}">${escapeHtml(u.role.toUpperCase())}</span>
+            </td>
+            <td>
+              <span class="badge-status ${u.status === 'active' ? 'badge-active' : 'badge-disabled'}">${escapeHtml(u.status.toUpperCase())}</span>
+            </td>
+            <td>
+              <button type="button" class="security-control" data-user-action="toggle" data-user-id="${escapeHtml(u.id)}">
+                ${u.status === 'active' ? 'Disable' : 'Activate'}
+              </button>
+            </td>
+          </tr>
+        `).join('');
+      }
+    }
+
+    // 3. Security Accounts
     const secContainer = document.querySelector('#securityAccounts');
     const entries = Object.entries(securityAccounts || {});
     if (entries.length === 0) {
@@ -342,7 +510,10 @@ async function renderAdmin() {
   }
 }
 
-// Event Listeners Initialization
+// -----------------------------------------------------------------------------
+// EVENT LISTENERS INITIALIZATION
+// -----------------------------------------------------------------------------
+
 function initEventListeners() {
   // Category Filters
   document.querySelectorAll('.filter').forEach(button => {
@@ -391,30 +562,17 @@ function initEventListeners() {
     button.addEventListener('click', () => button.closest('dialog')?.close());
   });
 
-  // Login Modal
-  document.querySelector('#loginButton')?.addEventListener('click', () => loginDialog?.showModal());
-  document.querySelector('#loginForm')?.addEventListener('submit', event => {
-    event.preventDefault();
-    const email = document.querySelector('#loginEmailInput').value.trim();
-    if (email) {
-      localStorage.setItem('givegrid_account_email', email);
-      document.querySelector('#accountEmail').value = email;
-      renderAccount();
-    }
-    loginDialog?.close();
-    showToast(`Signed in as ${email}`);
-  });
-
   // Identity Verification
   document.querySelector('#startVerification')?.addEventListener('click', () => verificationDialog?.showModal());
   document.querySelector('#verificationDone')?.addEventListener('click', async () => {
-    const email = document.querySelector('#accountEmail')?.value.trim();
-    const docType = document.querySelector('#docType')?.value || 'passport';
-    if (!email) {
-      showToast('Please enter your contributor email in Account first.');
+    if (!currentUser) {
+      showToast('Please authorize your contributor account first.');
       verificationDialog?.close();
       return;
     }
+
+    const email = currentUser.email;
+    const docType = document.querySelector('#docType')?.value || 'passport';
 
     try {
       const res = await fetch('api.php?action=verify', {
@@ -432,15 +590,71 @@ function initEventListeners() {
     verificationDialog?.close();
   });
 
-  // Contributor Email Input
-  const emailInput = document.querySelector('#accountEmail');
-  if (emailInput) {
-    emailInput.value = localStorage.getItem('givegrid_account_email') || 'alex@example.com';
-    emailInput.addEventListener('input', () => {
-      localStorage.setItem('givegrid_account_email', emailInput.value);
-      renderAccount();
-    });
-  }
+  // Admin Add User Form
+  const addUserForm = document.querySelector('#addUserForm');
+  addUserForm?.addEventListener('submit', async event => {
+    event.preventDefault();
+    const name = document.querySelector('#newUserName').value.trim();
+    const email = document.querySelector('#newUserEmail').value.trim();
+    const password = document.querySelector('#newUserPassword').value;
+    const role = document.querySelector('#newUserRole').value;
+
+    try {
+      const res = await fetch('api.php?action=admin_add_user', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name, email, password, role })
+      });
+
+      const data = await res.json();
+      if (!res.ok) {
+        showToast(data.error || 'Failed to create user.');
+        return;
+      }
+
+      // Display newly generated credentials box
+      const credBox = document.querySelector('#newCredentialsBox');
+      document.querySelector('#credEmail').textContent = email;
+      document.querySelector('#credPass').textContent = password;
+      document.querySelector('#credRole').textContent = role.toUpperCase();
+      credBox.style.display = 'block';
+
+      // Setup Copy button
+      document.querySelector('#copyCredBtn').onclick = () => {
+        navigator.clipboard?.writeText(`GiveGrid Logins:\nEmail: ${email}\nPassword: ${password}\nURL: http://localhost/givegrid/`);
+        showToast('Logins copied to clipboard! Share with the user.');
+      };
+
+      addUserForm.reset();
+      showToast(`User ${name} added! Logins ready to share.`);
+      renderAdmin();
+    } catch (err) {
+      console.error(err);
+      showToast('Error creating user in database.');
+    }
+  });
+
+  // Admin Toggle User Status (Disable / Activate)
+  document.querySelector('#userTableBody')?.addEventListener('click', async event => {
+    const button = event.target.closest('[data-user-action="toggle"]');
+    if (!button) return;
+
+    const userId = button.dataset.userId;
+    try {
+      const res = await fetch('api.php?action=admin_toggle_user', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id: userId, actionType: 'toggle' })
+      });
+
+      if (res.ok) {
+        showToast('User account status updated in MySQL.');
+        renderAdmin();
+      }
+    } catch (err) {
+      console.error(err);
+    }
+  });
 
   // Admin Create Task Form
   const taskForm = document.querySelector('#taskForm');
@@ -580,8 +794,8 @@ function initEventListeners() {
 // Initial Boot
 async function startApp() {
   initEventListeners();
+  updateAuthUI();
   await fetchTasks();
-  await renderAccount();
   await renderAdmin();
 }
 

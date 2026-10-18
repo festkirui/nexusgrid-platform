@@ -1,13 +1,13 @@
 <?php
 /**
  * GiveGrid - REST API Controller
- * Serves JSON responses for tasks, submissions, contributor account stats, and security
+ * Serves JSON responses for tasks, submissions, contributor account stats, authentication & user management
  */
 
 header('Content-Type: application/json; charset=utf-8');
 header('Access-Control-Allow-Origin: *');
 header('Access-Control-Allow-Methods: GET, POST, OPTIONS');
-header('Access-Control-Allow-Headers: Content-Type');
+header('Access-Control-Allow-Headers: Content-Type, Authorization');
 
 if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
     http_response_code(200);
@@ -33,7 +33,193 @@ function getRequestData(): array {
 
 try {
     switch ($action) {
-        // 1. GET /api.php?action=tasks
+        // --- 0. AUTHENTICATION & LOGIN ---
+        case 'login':
+            if ($method !== 'POST') {
+                http_response_code(405);
+                echo json_encode(['error' => 'Method Not Allowed']);
+                exit;
+            }
+
+            $input = getRequestData();
+            $email = strtolower(trim($input['email'] ?? ''));
+            $password = trim($input['password'] ?? '');
+
+            if (empty($email) || empty($password)) {
+                http_response_code(400);
+                echo json_encode(['error' => 'Email and password are required.']);
+                exit;
+            }
+
+            $stmt = $pdo->prepare("SELECT * FROM users WHERE LOWER(email) = ? LIMIT 1");
+            $stmt->execute([$email]);
+            $user = $stmt->fetch();
+
+            if (!$user) {
+                http_response_code(401);
+                echo json_encode([
+                    'error' => 'Account not found. Only administrator-authorized users can log in.'
+                ]);
+                exit;
+            }
+
+            if ($user['status'] === 'disabled') {
+                http_response_code(403);
+                echo json_encode([
+                    'error' => 'This account has been disabled by the administrator.'
+                ]);
+                exit;
+            }
+
+            if (!password_verify($password, $user['password_hash'])) {
+                http_response_code(401);
+                echo json_encode(['error' => 'Invalid password credentials.']);
+                exit;
+            }
+
+            // Generate token
+            $authToken = bin2hex(random_bytes(24));
+            $updateStmt = $pdo->prepare("UPDATE users SET auth_token = ?, last_login = NOW() WHERE id = ?");
+            $updateStmt->execute([$authToken, $user['id']]);
+
+            echo json_encode([
+                'success' => true,
+                'token' => $authToken,
+                'user' => [
+                    'id' => (int)$user['id'],
+                    'name' => $user['name'],
+                    'email' => $user['email'],
+                    'role' => $user['role'],
+                    'status' => $user['status']
+                ]
+            ]);
+            break;
+
+        case 'logout':
+            $input = getRequestData();
+            $token = $input['token'] ?? ($_GET['token'] ?? '');
+            if (!empty($token)) {
+                $pdo->prepare("UPDATE users SET auth_token = NULL WHERE auth_token = ?")->execute([$token]);
+            }
+            echo json_encode(['success' => true]);
+            break;
+
+        case 'current_user':
+            $token = $_GET['token'] ?? '';
+            if (empty($token)) {
+                $authHeader = $_SERVER['HTTP_AUTHORIZATION'] ?? '';
+                if (preg_match('/Bearer\s+(\S+)/', $authHeader, $matches)) {
+                    $token = $matches[1];
+                }
+            }
+
+            if (empty($token)) {
+                echo json_encode(['user' => null]);
+                exit;
+            }
+
+            $stmt = $pdo->prepare("SELECT id, name, email, role, status FROM users WHERE auth_token = ? LIMIT 1");
+            $stmt->execute([$token]);
+            $user = $stmt->fetch();
+            echo json_encode(['user' => $user ?: null]);
+            break;
+
+        // --- ADMIN USER MANAGEMENT ---
+        case 'admin_add_user':
+            if ($method !== 'POST') {
+                http_response_code(405);
+                echo json_encode(['error' => 'Method Not Allowed']);
+                exit;
+            }
+
+            $input = getRequestData();
+            $name = trim($input['name'] ?? '');
+            $email = strtolower(trim($input['email'] ?? ''));
+            $password = trim($input['password'] ?? '');
+            $role = in_array($input['role'] ?? '', ['admin', 'contributor']) ? $input['role'] : 'contributor';
+
+            if (empty($name) || empty($email) || empty($password)) {
+                http_response_code(400);
+                echo json_encode(['error' => 'Name, email, and initial password are required.']);
+                exit;
+            }
+
+            if (!filter_var($email, FILTER_VALIDATE_EMAIL)) {
+                http_response_code(400);
+                echo json_encode(['error' => 'Please provide a valid email address.']);
+                exit;
+            }
+
+            // Check if user already exists
+            $checkStmt = $pdo->prepare("SELECT id FROM users WHERE LOWER(email) = ?");
+            $checkStmt->execute([$email]);
+            if ($checkStmt->fetch()) {
+                http_response_code(409);
+                echo json_encode(['error' => 'A user with this email already exists.']);
+                exit;
+            }
+
+            $passwordHash = password_hash($password, PASSWORD_DEFAULT);
+            $stmt = $pdo->prepare("
+                INSERT INTO users (name, email, password_hash, role, status)
+                VALUES (?, ?, ?, ?, 'active')
+            ");
+            $stmt->execute([$name, $email, $passwordHash, $role]);
+
+            $newId = (int)$pdo->lastInsertId();
+            echo json_encode([
+                'success' => true,
+                'user' => [
+                    'id' => $newId,
+                    'name' => $name,
+                    'email' => $email,
+                    'role' => $role,
+                    'status' => 'active',
+                    'login_password' => $password
+                ]
+            ]);
+            break;
+
+        case 'admin_list_users':
+            $stmt = $pdo->query("SELECT id, name, email, role, status, created_at AS createdAt, last_login AS lastLogin FROM users ORDER BY id DESC");
+            echo json_encode($stmt->fetchAll());
+            break;
+
+        case 'admin_toggle_user':
+            if ($method !== 'POST') {
+                http_response_code(405);
+                echo json_encode(['error' => 'Method Not Allowed']);
+                exit;
+            }
+
+            $input = getRequestData();
+            $userId = (int)($input['id'] ?? 0);
+            $actionType = $input['actionType'] ?? 'toggle'; // 'toggle', 'disable', 'activate', 'delete'
+
+            if (!$userId) {
+                http_response_code(400);
+                echo json_encode(['error' => 'User ID is required.']);
+                exit;
+            }
+
+            if ($actionType === 'delete') {
+                $pdo->prepare("DELETE FROM users WHERE id = ?")->execute([$userId]);
+            } else {
+                $statusStmt = $pdo->prepare("SELECT status FROM users WHERE id = ?");
+                $statusStmt->execute([$userId]);
+                $curr = $statusStmt->fetchColumn();
+
+                $newStatus = ($curr === 'disabled') ? 'active' : 'disabled';
+                if ($actionType === 'activate') $newStatus = 'active';
+                if ($actionType === 'disable') $newStatus = 'disabled';
+
+                $pdo->prepare("UPDATE users SET status = ? WHERE id = ?")->execute([$newStatus, $userId]);
+            }
+
+            echo json_encode(['success' => true]);
+            break;
+
+        // --- 1. GET TASKS ---
         case 'tasks':
             $category = $_GET['category'] ?? 'All';
             $sort = $_GET['sort'] ?? 'recommended';
@@ -85,7 +271,7 @@ try {
             ]);
             break;
 
-        // 2. POST /api.php?action=create_task
+        // --- 2. CREATE TASK (ADMIN) ---
         case 'create_task':
             if ($method !== 'POST') {
                 http_response_code(405);
@@ -135,7 +321,7 @@ try {
             ]);
             break;
 
-        // 3. GET /api.php?action=submissions
+        // --- 3. SUBMISSIONS ---
         case 'submissions':
             $email = trim($_GET['email'] ?? '');
             $status = trim($_GET['status'] ?? '');
@@ -164,7 +350,7 @@ try {
             echo json_encode($stmt->fetchAll());
             break;
 
-        // 4. POST /api.php?action=create_submission
+        // --- 4. CREATE SUBMISSION (GATED TO AUTHORIZED USERS) ---
         case 'create_submission':
             if ($method !== 'POST') {
                 http_response_code(405);
@@ -184,7 +370,28 @@ try {
                 exit;
             }
 
-            // Check if account is disabled by admin security
+            // Gated check: user MUST exist in users table
+            $userCheck = $pdo->prepare("SELECT id, status FROM users WHERE LOWER(email) = ? LIMIT 1");
+            $userCheck->execute([$email]);
+            $userRecord = $userCheck->fetch();
+
+            if (!$userRecord) {
+                http_response_code(403);
+                echo json_encode([
+                    'error' => 'Unauthorized account. Only users added by an administrator with valid logins can submit tasks. Please log in with your authorized credentials.'
+                ]);
+                exit;
+            }
+
+            if ($userRecord['status'] === 'disabled') {
+                http_response_code(403);
+                echo json_encode([
+                    'error' => 'This account has been disabled by the administrator.'
+                ]);
+                exit;
+            }
+
+            // Check if account is disabled in security controls
             $secStmt = $pdo->prepare("SELECT status, country FROM account_controls WHERE LOWER(email) = ?");
             $secStmt->execute([$email]);
             $security = $secStmt->fetch();
@@ -218,7 +425,7 @@ try {
             ]);
             break;
 
-        // 5. POST /api.php?action=grade
+        // --- 5. GRADE SUBMISSION (ADMIN) ---
         case 'grade':
             if ($method !== 'POST') {
                 http_response_code(405);
@@ -247,12 +454,13 @@ try {
             echo json_encode(['success' => true]);
             break;
 
-        // 6. GET /api.php?action=account
+        // --- 6. CONTRIBUTOR ACCOUNT STATS ---
         case 'account':
             $email = strtolower(trim($_GET['email'] ?? ''));
             if (empty($email)) {
                 echo json_encode([
                     'email' => '',
+                    'isAuthorized' => false,
                     'rating' => null,
                     'gradedCount' => 0,
                     'pendingCount' => 0,
@@ -262,6 +470,13 @@ try {
                 ]);
                 exit;
             }
+
+            // Verify if user is registered in the users table
+            $userCheck = $pdo->prepare("SELECT id, name, status, role FROM users WHERE LOWER(email) = ? LIMIT 1");
+            $userCheck->execute([$email]);
+            $userRecord = $userCheck->fetch();
+
+            $isAuthorized = ($userRecord && $userRecord['status'] === 'active');
 
             $stmt = $pdo->prepare("
                 SELECT 
@@ -287,6 +502,10 @@ try {
 
             echo json_encode([
                 'email' => $email,
+                'isAuthorized' => $isAuthorized,
+                'userName' => $userRecord['name'] ?? null,
+                'userRole' => $userRecord['role'] ?? null,
+                'userStatus' => $userRecord['status'] ?? 'not_registered',
                 'rating' => $stats['avgScore'] !== null ? round((float)$stats['avgScore'], 1) : null,
                 'gradedCount' => (int)$stats['gradedCount'],
                 'pendingCount' => (int)$stats['pendingCount'],
@@ -296,7 +515,7 @@ try {
             ]);
             break;
 
-        // 7. POST /api.php?action=verify
+        // --- 7. VERIFY ID ---
         case 'verify':
             if ($method !== 'POST') {
                 http_response_code(405);
@@ -324,7 +543,7 @@ try {
             echo json_encode(['success' => true, 'verified' => true, 'email' => $email]);
             break;
 
-        // 8. GET /api.php?action=security
+        // --- 8. SECURITY CONTROLS ---
         case 'security':
             $stmt = $pdo->query("SELECT email, status, country, flagged_at AS flaggedAt FROM account_controls ORDER BY id DESC");
             $accounts = [];
@@ -334,7 +553,6 @@ try {
             echo json_encode($accounts);
             break;
 
-        // 9. POST /api.php?action=security_flag
         case 'security_flag':
             if ($method !== 'POST') {
                 http_response_code(405);
@@ -362,7 +580,6 @@ try {
             echo json_encode(['success' => true, 'email' => $email, 'status' => 'flagged', 'country' => $country]);
             break;
 
-        // 10. POST /api.php?action=security_action
         case 'security_action':
             if ($method !== 'POST') {
                 http_response_code(405);
@@ -388,12 +605,15 @@ try {
 
         default:
             echo json_encode([
-                'status' => 'GiveGrid PHP API Running',
+                'status' => 'GiveGrid PHP API Running with User Authentication',
                 'endpoints' => [
+                    'login' => '?action=login',
+                    'current_user' => '?action=current_user',
+                    'admin_add_user' => '?action=admin_add_user',
+                    'admin_list_users' => '?action=admin_list_users',
                     'tasks' => '?action=tasks',
                     'submissions' => '?action=submissions',
-                    'account' => '?action=account&email=...',
-                    'security' => '?action=security'
+                    'account' => '?action=account&email=...'
                 ]
             ]);
             break;

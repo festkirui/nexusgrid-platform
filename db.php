@@ -196,4 +196,57 @@ function initAndSeedDatabase(): void {
         INSERT IGNORE INTO verified_contributors (email, doc_type)
         VALUES ('alex@example.com', 'passport')
     ")->execute();
+
+    ensureUsersTableAndSeed($pdo);
+}
+
+function ensureUsersTableAndSeed(PDO $pdo): void {
+    $pdo->exec("
+        CREATE TABLE IF NOT EXISTS users (
+            id INT AUTO_INCREMENT PRIMARY KEY,
+            name VARCHAR(120) NOT NULL,
+            email VARCHAR(180) UNIQUE NOT NULL,
+            password_hash VARCHAR(255) NOT NULL,
+            role ENUM('admin', 'contributor') NOT NULL DEFAULT 'contributor',
+            status ENUM('active', 'disabled') NOT NULL DEFAULT 'active',
+            auth_token VARCHAR(64) NULL,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            last_login TIMESTAMP NULL
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+    ");
+
+    $count = (int) $pdo->query("SELECT COUNT(*) FROM users")->fetchColumn();
+    if ($count === 0) {
+        $insert = $pdo->prepare("
+            INSERT IGNORE INTO users (name, email, password_hash, role, status)
+            VALUES (?, ?, ?, ?, ?)
+        ");
+
+        // Default admin: admin@givegrid.com / admin123
+        $insert->execute([
+            'Grid Admin',
+            'admin@givegrid.com',
+            password_hash('admin123', PASSWORD_DEFAULT),
+            'admin',
+            'active'
+        ]);
+
+        // Default contributor: alex@example.com / alex123
+        $insert->execute([
+            'Alex Rivera',
+            'alex@example.com',
+            password_hash('alex123', PASSWORD_DEFAULT),
+            'contributor',
+            'active'
+        ]);
+
+        // Default contributor: festus@example.com / festus123
+        $insert->execute([
+            'Festus Kirui',
+            'festus@example.com',
+            password_hash('festus123', PASSWORD_DEFAULT),
+            'contributor',
+            'active'
+        ]);
+    }
 }

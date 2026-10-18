@@ -1912,3 +1912,142 @@ h2 {
   .footer > small { grid-row: 4; }
   .task-dialog { padding: 27px 22px; }
 }
+
+/* User Management & Authorization Styles */
+.auth-gate-box {
+  background: linear-gradient(135deg, #111a1f, #0d1318);
+  border: 1px dashed #3e5249;
+  padding: 35px 25px;
+  text-align: center;
+  border-radius: 4px;
+  margin-top: 15px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 14px;
+}
+
+.auth-gate-box h3 {
+  font-size: 18px;
+  margin: 0;
+  color: var(--mint);
+}
+
+.auth-gate-box p {
+  max-width: 480px;
+  color: #9db0a8;
+  font-size: 11px;
+  line-height: 1.7;
+  margin: 0;
+}
+
+.user-management-panel {
+  margin-top: 20px;
+  border: 1px solid #2d3b40;
+  background: #0e1519;
+  padding: 22px;
+}
+
+.user-admin-grid {
+  display: grid;
+  grid-template-columns: 0.9fr 1.1fr;
+  gap: 20px;
+  margin-top: 16px;
+}
+
+@media (max-width: 900px) {
+  .user-admin-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+.user-table-wrap {
+  overflow-x: auto;
+}
+
+.user-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 11px;
+  text-align: left;
+}
+
+.user-table th {
+  padding: 10px 12px;
+  border-bottom: 1px solid #2d3b40;
+  color: #8da098;
+  font-family: var(--mono);
+  font-size: 9px;
+  letter-spacing: 0.5px;
+}
+
+.user-table td {
+  padding: 12px 12px;
+  border-bottom: 1px solid #1a252b;
+  color: #dbe4df;
+}
+
+.badge-status {
+  display: inline-block;
+  padding: 3px 8px;
+  border-radius: 2px;
+  font-family: var(--mono);
+  font-size: 8px;
+  letter-spacing: 0.5px;
+}
+
+.badge-active {
+  background: rgba(184, 242, 106, 0.12);
+  color: var(--mint);
+  border: 1px solid #3c543c;
+}
+
+.badge-disabled {
+  background: rgba(235, 87, 87, 0.12);
+  color: #ff7878;
+  border: 1px solid #6b3535;
+}
+
+.credentials-box {
+  background: #14231b;
+  border: 1px solid var(--mint);
+  padding: 14px 16px;
+  border-radius: 4px;
+  margin-top: 15px;
+  display: none;
+}
+
+.credentials-box h4 {
+  margin: 0 0 6px;
+  color: var(--mint);
+  font-size: 12px;
+}
+
+.credentials-box p {
+  margin: 4px 0;
+  font-size: 10px;
+  color: #c9ded3;
+  font-family: var(--mono);
+}
+
+.credentials-box button {
+  margin-top: 8px;
+  padding: 5px 10px;
+  font-size: 9px;
+  background: var(--mint);
+  color: #0b1115;
+  border: 0;
+  font-weight: 700;
+  cursor: pointer;
+  border-radius: 2px;
+}
+
+.user-logged-badge {
+  font-size: 11px;
+  color: var(--mint);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-family: var(--mono);
+}
+

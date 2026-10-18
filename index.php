@@ -34,8 +34,12 @@ initAndSeedDatabase();
       <a href="#how-it-works">How it works</a>
     </nav>
     <div class="nav-actions">
-      <button class="text-button" id="loginButton">Log in</button>
-      <a class="button button-small button-bright" href="#opportunities">Join the grid <span>↗</span></a>
+      <div id="authStatusBadge" style="display:none;" class="user-logged-badge">
+        <span id="navUserName">👤 Contributor</span>
+        <button class="text-button" id="logoutButton" style="color:#ff8787;">Log out</button>
+      </div>
+      <button class="button button-small button-bright" id="loginButton">authorize me <span>→</span></button>
+      <a class="button button-small button-quiet" href="#opportunities">Join the grid <span>↗</span></a>
     </div>
     <button class="menu-toggle" aria-label="Open menu" aria-expanded="false">
       <span></span>
@@ -134,13 +138,24 @@ initAndSeedDatabase();
             <div class="eyebrow"><span class="eyebrow-mark">03 /</span> CONTRIBUTOR ACCOUNT</div>
             <h2>Your work.<br>Your progress.</h2>
           </div>
-          <p>Use the same email you enter with each task submission to see your graded work and account rating.</p>
+          <p>Only users registered by an administrator can access their contributor account and view ratings.</p>
         </div>
-        <div class="account-bar">
-          <label for="accountEmail">Contributor email</label>
-          <input id="accountEmail" type="email" placeholder="you@example.com">
-          <span class="account-hint">Stored securely in MySQL database `givegrid`.</span>
+
+        <!-- Authorization Gate Box (displayed when user is NOT logged in) -->
+        <div id="authGateContainer" class="auth-gate-box">
+          <div class="eyebrow"><span class="pulse"></span> CONTRIBUTOR LOGIN REQUIRED</div>
+          <h3>Authorization Required</h3>
+          <p>Your administrator adds contributors and assigns logins. Please authorize your account with the login credentials given to you to access your submissions and track your rating.</p>
+          <button class="button button-bright" id="gateAuthBtn">authorize me <span>→</span></button>
         </div>
+
+        <!-- Authenticated Contributor Dashboard -->
+        <div id="contributorDashboard" style="display:none;">
+          <div class="account-bar">
+            <label for="accountEmail">Authorized Contributor</label>
+            <input id="accountEmail" type="email" placeholder="you@example.com" readonly style="opacity:0.9;">
+            <span class="account-hint" id="authRoleBadge">Authorized Contributor</span>
+          </div>
         
         <article class="verification-card" aria-labelledby="verificationTitle">
           <div class="verification-copy">
@@ -178,13 +193,14 @@ initAndSeedDatabase();
 
         <div id="accountSecurityState" class="account-security-state" hidden></div>
 
-        <div class="submission-list">
-          <div class="list-heading">
-            <h3>My submissions</h3>
-            <span id="submissionLabel">Enter your email to see your work</span>
+          <div class="submission-list">
+            <div class="list-heading">
+              <h3>My submissions</h3>
+              <span id="submissionLabel">Enter your email to see your work</span>
+            </div>
+            <div id="mySubmissions" class="submission-rows"></div>
           </div>
-          <div id="mySubmissions" class="submission-rows"></div>
-        </div>
+        </div> <!-- End contributorDashboard -->
       </div>
     </section>
 
@@ -241,6 +257,75 @@ initAndSeedDatabase();
               </div>
             </div>
             <div id="reviewQueue" class="review-queue"></div>
+          </div>
+        </div>
+
+        <!-- 04.B / User Management & Contributor Logins Panel -->
+        <div class="user-management-panel" id="userManagementSection">
+          <div class="admin-title">
+            <span class="admin-icon">👥</span>
+            <div>
+              <h3>User Management &amp; Contributor Logins</h3>
+              <small>Add new users to the database and assign login credentials so they can access their account.</small>
+            </div>
+          </div>
+          
+          <div class="user-admin-grid">
+            <!-- Add User Form -->
+            <form id="addUserForm" class="admin-create">
+              <div class="admin-title" style="margin-bottom:12px;">
+                <span class="admin-icon" style="width:24px; height:24px; font-size:14px;">＋</span>
+                <div>
+                  <h4 style="margin:0; font-size:13px;">Add New User</h4>
+                  <small>Assign login credentials</small>
+                </div>
+              </div>
+              <label>Full Name
+                <input name="name" id="newUserName" required maxlength="100" placeholder="e.g. Maya Chen">
+              </label>
+              <label>Email Address (Login Username)
+                <input name="email" id="newUserEmail" type="email" required maxlength="160" placeholder="contributor@example.com">
+              </label>
+              <label>Initial Password / Access Key
+                <input name="password" id="newUserPassword" required minlength="4" maxlength="80" placeholder="e.g. contributor123">
+              </label>
+              <label>Account Role
+                <select name="role" id="newUserRole">
+                  <option value="contributor">Contributor (Access tasks, account &amp; rating)</option>
+                  <option value="admin">Administrator (Full administrative access)</option>
+                </select>
+              </label>
+              <button class="button button-bright" type="submit">Authorize &amp; Save User <span>＋</span></button>
+            </form>
+
+            <!-- Users List & Credentials Display -->
+            <div>
+              <!-- New Credentials Sharing Callout -->
+              <div id="newCredentialsBox" class="credentials-box">
+                <h4>✓ New Account Authorized</h4>
+                <p>Provide these login details to the contributor:</p>
+                <p><strong>Email:</strong> <span id="credEmail" style="color:var(--mint);"></span></p>
+                <p><strong>Password:</strong> <span id="credPass" style="color:var(--mint);"></span></p>
+                <p><strong>Role:</strong> <span id="credRole" style="color:#dbe4df;"></span></p>
+                <button type="button" id="copyCredBtn">Copy Logins 📋</button>
+              </div>
+
+              <div class="user-table-wrap">
+                <table class="user-table">
+                  <thead>
+                    <tr>
+                      <th>NAME &amp; EMAIL</th>
+                      <th>ROLE</th>
+                      <th>STATUS</th>
+                      <th>ACTION</th>
+                    </tr>
+                  </thead>
+                  <tbody id="userTableBody">
+                    <!-- Loaded dynamically via app.js -->
+                  </tbody>
+                </table>
+              </div>
+            </div>
           </div>
         </div>
 
@@ -388,18 +473,27 @@ initAndSeedDatabase();
     </form>
   </dialog>
 
-  <!-- Log In Dialog -->
+  <!-- Contributor Access Authorization Dialog -->
   <dialog id="loginDialog" class="task-dialog login-dialog">
     <button class="dialog-close" aria-label="Close dialog">×</button>
-    <div class="eyebrow"><span class="pulse"></span> WELCOME BACK</div>
-    <h2>Good to see you.</h2>
-    <p>Sign in to view your contributor workspace and track submissions.</p>
+    <div class="eyebrow"><span class="pulse"></span> CONTRIBUTOR ACCESS</div>
+    <h2>Contributor Login</h2>
+    <p>Only users who have been given logins by the administrator can access the account. Enter your credentials to authorize access.</p>
     <form id="loginForm">
-      <label>Email address
-        <input type="email" id="loginEmailInput" placeholder="you@example.com" required>
+      <label>Contributor Email
+        <input type="email" id="loginEmailInput" placeholder="contributor@example.com" required>
       </label>
-      <button class="button button-bright" type="submit">Continue <span>→</span></button>
+      <label>Password / Access Key
+        <input type="password" id="loginPasswordInput" placeholder="Password provided by admin" required>
+      </label>
+      <button class="button button-bright" type="submit" id="authSubmitBtn">authorize me <span>→</span></button>
     </form>
+    <div style="font-size:10px; color:#7d9188; margin-top:16px; border-top:1px solid #283731; padding-top:12px; line-height:1.6;">
+      <b>Demo Accounts Seeded in Laragon MySQL:</b><br>
+      • Contributor: <code style="color:var(--mint)">alex@example.com</code> / <code style="color:var(--mint)">alex123</code><br>
+      • Contributor: <code style="color:var(--mint)">festus@example.com</code> / <code style="color:var(--mint)">festus123</code><br>
+      • Administrator: <code style="color:var(--mint)">admin@givegrid.com</code> / <code style="color:var(--mint)">admin123</code>
+    </div>
   </dialog>
 
   <!-- Floating Toast Notification -->
