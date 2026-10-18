@@ -30,8 +30,8 @@ initAndSeedDatabase();
     <nav class="main-nav" aria-label="Main navigation">
       <a href="#opportunities">Opportunities</a>
       <a href="#my-work">My work</a>
-      <a href="#admin">Admin</a>
       <a href="#how-it-works">How it works</a>
+      <a href="admin.php" style="color:var(--mint);">Admin Portal ↗</a>
     </nav>
     <div class="nav-actions">
       <div id="authStatusBadge" style="display:none;" class="user-logged-badge">
@@ -204,155 +204,6 @@ initAndSeedDatabase();
       </div>
     </section>
 
-    <!-- 04 / Admin Section -->
-    <section class="admin-section" id="admin">
-      <div class="section-wrap admin-inner">
-        <div class="workspace-heading">
-          <div>
-            <div class="eyebrow"><span class="eyebrow-mark">04 /</span> ADMIN WORKSPACE</div>
-            <h2>Manage tasks<br>and reviews.</h2>
-          </div>
-          <p>Post new opportunities, review submissions, and approve work with a score from 1 to 5.</p>
-        </div>
-        <div class="admin-grid">
-          <form class="admin-create" id="taskForm">
-            <div class="admin-title">
-              <span class="admin-icon">＋</span>
-              <div>
-                <h3>Create an opportunity</h3>
-                <small>New tasks are inserted into the MySQL `tasks` table.</small>
-              </div>
-            </div>
-            <label>Task title
-              <input name="title" required maxlength="90" placeholder="e.g. Review a short explanation">
-            </label>
-            <label>Category
-              <select name="category">
-                <option value="Writing">Writing</option>
-                <option value="Coding">Coding</option>
-                <option value="Research">Research</option>
-                <option value="Evaluation">Evaluation</option>
-              </select>
-            </label>
-            <label>Task description
-              <textarea name="description" required maxlength="400" rows="3" placeholder="What will the contributor do?"></textarea>
-            </label>
-            <div class="form-row">
-              <label>Pay per task (USD)
-                <input name="pay" type="number" min="1" max="1000" value="25" required>
-              </label>
-              <label>Estimated time
-                <input name="time" maxlength="20" value="30 min" required>
-              </label>
-            </div>
-            <button class="button button-bright" type="submit">Publish task <span>↗</span></button>
-          </form>
-
-          <div class="review-panel">
-            <div class="admin-title">
-              <span class="admin-icon">✓</span>
-              <div>
-                <h3>Submission review</h3>
-                <small id="reviewCount">No submissions waiting</small>
-              </div>
-            </div>
-            <div id="reviewQueue" class="review-queue"></div>
-          </div>
-        </div>
-
-        <!-- 04.B / User Management & Contributor Logins Panel -->
-        <div class="user-management-panel" id="userManagementSection">
-          <div class="admin-title">
-            <span class="admin-icon">👥</span>
-            <div>
-              <h3>User Management &amp; Contributor Logins</h3>
-              <small>Add new users to the database and assign login credentials so they can access their account.</small>
-            </div>
-          </div>
-          
-          <div class="user-admin-grid">
-            <!-- Add User Form -->
-            <form id="addUserForm" class="admin-create">
-              <div class="admin-title" style="margin-bottom:12px;">
-                <span class="admin-icon" style="width:24px; height:24px; font-size:14px;">＋</span>
-                <div>
-                  <h4 style="margin:0; font-size:13px;">Add New User</h4>
-                  <small>Assign login credentials</small>
-                </div>
-              </div>
-              <label>Full Name
-                <input name="name" id="newUserName" required maxlength="100" placeholder="e.g. Maya Chen">
-              </label>
-              <label>Email Address (Login Username)
-                <input name="email" id="newUserEmail" type="email" required maxlength="160" placeholder="contributor@example.com">
-              </label>
-              <label>Initial Password / Access Key
-                <input name="password" id="newUserPassword" required minlength="4" maxlength="80" placeholder="e.g. contributor123">
-              </label>
-              <label>Account Role
-                <select name="role" id="newUserRole">
-                  <option value="contributor">Contributor (Access tasks, account &amp; rating)</option>
-                  <option value="admin">Administrator (Full administrative access)</option>
-                </select>
-              </label>
-              <button class="button button-bright" type="submit">Authorize &amp; Save User <span>＋</span></button>
-            </form>
-
-            <!-- Users List & Credentials Display -->
-            <div>
-              <!-- New Credentials Sharing Callout -->
-              <div id="newCredentialsBox" class="credentials-box">
-                <h4>✓ New Account Authorized</h4>
-                <p>Provide these login details to the contributor:</p>
-                <p><strong>Email:</strong> <span id="credEmail" style="color:var(--mint);"></span></p>
-                <p><strong>Password:</strong> <span id="credPass" style="color:var(--mint);"></span></p>
-                <p><strong>Role:</strong> <span id="credRole" style="color:#dbe4df;"></span></p>
-                <button type="button" id="copyCredBtn">Copy Logins 📋</button>
-              </div>
-
-              <div class="user-table-wrap">
-                <table class="user-table">
-                  <thead>
-                    <tr>
-                      <th>NAME &amp; EMAIL</th>
-                      <th>ROLE</th>
-                      <th>STATUS</th>
-                      <th>ACTION</th>
-                    </tr>
-                  </thead>
-                  <tbody id="userTableBody">
-                    <!-- Loaded dynamically via app.js -->
-                  </tbody>
-                </table>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        <!-- Security Panel -->
-        <div class="security-panel">
-          <div class="admin-title">
-            <span class="admin-icon">⌑</span>
-            <div>
-              <h3>Account security</h3>
-              <small>Record an unfamiliar-country alert and manage contributor access in MySQL.</small>
-            </div>
-          </div>
-          <form id="securityFlagForm" class="security-flag-form">
-            <label>Contributor email
-              <input name="email" type="email" required maxlength="160" placeholder="person@example.com">
-            </label>
-            <label>Country in security alert
-              <input name="country" required maxlength="80" placeholder="e.g. Switzerland">
-            </label>
-            <button class="button button-outline" type="submit">Flag for review <span>⚑</span></button>
-          </form>
-          <div id="securityAccounts" class="security-accounts"></div>
-          <p class="security-disclaimer">Admin Security Control: Demonstrates account state flags, country alerts, and permission gating for contributor submissions.</p>
-        </div>
-      </div>
-    </section>
-
     <!-- 02 / How It Works Section -->
     <section class="how-section" id="how-it-works">
       <div class="section-wrap how-inner">
@@ -437,7 +288,7 @@ initAndSeedDatabase();
       <a href="#opportunities">Opportunities</a>
       <a href="#how-it-works">How it works</a>
       <a href="#my-work">My work</a>
-      <a href="#admin">Admin</a>
+      <a href="admin.php">Admin Portal ↗</a>
       <a href="mailto:hello@givegrid.example">Contact</a>
     </div>
     <small>© 2026 GiveGrid. Built for people who care about good work.</small>

@@ -1,29 +1,43 @@
 # GiveGrid — PHP 8.3 & Laragon MySQL Edition
 
-A high-fidelity clone of [GiveGrid](https://givegrid.vercel.app/) powered by **PHP 8.3** and **MySQL in Laragon**.
+A high-fidelity clone of [GiveGrid](https://givegrid.vercel.app/) with separate **User/Contributor Portal** and **Administrator Dashboard** pages, powered by **PHP 8.3** and **MySQL in Laragon**.
 
 ---
 
-## 🚀 Live Access via Laragon
+## 🌐 Separate Pages Overview
 
-With Laragon running (Apache + MySQL):
-- **Local URL:** [http://localhost/givegrid/](http://localhost/givegrid/)
-- **Virtual Host (if enabled in Laragon):** `http://givegrid.test/`
+| Page | URL | Description |
+|---|---|---|
+| **Contributor / User Page** | **[http://localhost/givegrid/](http://localhost/givegrid/)** (`index.php`) | Browse opportunities, submit responses, track contributor account & ratings. Protected by **"authorize me"** login. |
+| **Admin Portal Page** | **[http://localhost/givegrid/admin.php](http://localhost/givegrid/admin.php)** (`admin.php`) | Dedicated admin control center: add users & assign logins, review & grade submissions (1–5), publish new opportunities, and manage account security. |
+
+---
+
+## 🔑 Pre-Seeded Logins for Testing
+
+| Portal | Email | Password | Role |
+|---|---|---|---|
+| **Admin Portal** | `admin@givegrid.com` | `admin123` | Administrator |
+| **User Portal** | `alex@example.com` | `alex123` | Contributor |
+| **User Portal** | `festus@example.com` | `festus123` | Contributor |
+
+*(Admins can also add new contributors from `admin.php` and instantly copy generated logins to give to them!)*
 
 ---
 
 ## 🗄️ Laragon Database Configuration
 
-- **Database Name:** `givegrid`
+- **Database:** `givegrid`
 - **Host:** `127.0.0.1` (Port `3306`)
 - **Username:** `root`
 - **Password:** *(empty)*
 
-### Tables Created:
-1. `tasks` — 100+ opportunity tasks with category, pay, level, time, and tag.
-2. `submissions` — Contributor answers, statuses (`pending`, `approved`, `rejected`), scores, and admin feedback.
-3. `account_controls` — Security country alerts and status gating (`active`, `flagged`, `disabled`).
-4. `verified_contributors` — Identity check verification records with document types.
+### Tables in MySQL:
+1. `users` — Administrator & Contributor login credentials with secure password hashes.
+2. `tasks` — 100+ opportunity tasks across Writing, Coding, Research, and Evaluation.
+3. `submissions` — Contributor task responses, statuses, grades (1–5), and admin feedback.
+4. `account_controls` — Geo-alert flags and account status gating (`active`, `disabled`).
+5. `verified_contributors` — Identity check verification records.
 
 ---
 
@@ -31,28 +45,13 @@ With Laragon running (Apache + MySQL):
 
 ```
 givegrid-php/ (linked to C:\laragon\www\givegrid)
-├── db.php         # PDO MySQL connection & auto-seeding engine
-├── api.php        # JSON REST API controller for all features
-├── index.php      # Main responsive GiveGrid frontend
-├── styles.css     # Dark futuristic styling & animations
-├── app.js         # Client-side API integration & UI state
+├── index.php      # User / Contributor portal page
+├── app.js         # User page controller & API integration
+├── admin.php      # Standalone Administrator workspace page
+├── admin.js       # Admin portal controller (users, reviews, tasks, security)
+├── db.php         # PDO MySQL connection & database seeding
+├── api.php        # Unified JSON REST API controller
+├── styles.css     # Futuristic dark UI styling & animations
 ├── schema.sql     # MySQL database schema definition
 └── README.md      # Project documentation
 ```
-
----
-
-## 🔌 API Endpoints (`api.php`)
-
-| Endpoint | Method | Description |
-|---|---|---|
-| `api.php?action=tasks` | GET | Retrieve tasks with sorting & filtering |
-| `api.php?action=create_task` | POST | Publish a new task opportunity |
-| `api.php?action=submissions` | GET | Retrieve submissions (`email`, `status`) |
-| `api.php?action=create_submission` | POST | Submit response for review |
-| `api.php?action=grade` | POST | Approve & grade a submission (1-5 score) |
-| `api.php?action=account` | GET | Contributor stats, rating & verification |
-| `api.php?action=verify` | POST | Simulate identity verification |
-| `api.php?action=security` | GET | List security-flagged accounts |
-| `api.php?action=security_flag` | POST | Record unfamiliar country alert |
-| `api.php?action=security_action` | POST | Disable, restore, or clear account |

@@ -1,12 +1,12 @@
-// GiveGrid PHP Client Application
-// Full authentication, Admin user creation & Laragon MySQL integration
+// GiveGrid Contributor / User Portal Controller (app.js)
+// Dedicated logic for index.php connecting with api.php & Laragon MySQL
 
 let tasks = [];
 let selectedFilter = 'All';
 let shownCount = 12;
 const pageSize = 12;
 
-// Auth State
+// Contributor Auth State
 let authToken = localStorage.getItem('givegrid_auth_token') || null;
 let currentUser = null;
 try {
@@ -56,7 +56,7 @@ function showToast(message) {
 }
 
 // -----------------------------------------------------------------------------
-// AUTHENTICATION & SESSION MANAGEMENT
+// CONTRIBUTOR AUTHENTICATION & SESSION
 // -----------------------------------------------------------------------------
 
 function updateAuthUI() {
@@ -67,11 +67,10 @@ function updateAuthUI() {
   const dashboard = document.querySelector('#contributorDashboard');
 
   if (currentUser && authToken) {
-    // User is logged in / authorized
     if (loginBtn) loginBtn.style.display = 'none';
     if (authStatusBadge) {
       authStatusBadge.style.display = 'flex';
-      navUserName.textContent = `👤 ${currentUser.name} (${currentUser.role})`;
+      navUserName.textContent = `👤 ${currentUser.name}`;
     }
     if (authGate) authGate.style.display = 'none';
     if (dashboard) dashboard.style.display = 'block';
@@ -86,7 +85,6 @@ function updateAuthUI() {
     }
     renderAccount();
   } else {
-    // Not authorized / logged out
     if (loginBtn) loginBtn.style.display = 'inline-flex';
     if (authStatusBadge) authStatusBadge.style.display = 'none';
     if (authGate) authGate.style.display = 'flex';
@@ -94,15 +92,15 @@ function updateAuthUI() {
   }
 }
 
-// Handle Login / Authorization Form ("authorize me" button)
+// Contributor Login Form ("authorize me" button)
 const loginForm = document.querySelector('#loginForm');
 if (loginForm) {
   loginForm.addEventListener('submit', async event => {
     event.preventDefault();
     const email = document.querySelector('#loginEmailInput').value.trim();
     const password = document.querySelector('#loginPasswordInput').value;
-
     const submitBtn = document.querySelector('#authSubmitBtn');
+
     if (submitBtn) {
       submitBtn.disabled = true;
       submitBtn.innerHTML = 'authorizing...';
@@ -116,9 +114,8 @@ if (loginForm) {
       });
 
       const data = await res.json();
-
       if (!res.ok) {
-        showToast(data.error || 'Authorization failed. Check your credentials.');
+        showToast(data.error || 'Authorization failed.');
         return;
       }
 
@@ -144,15 +141,13 @@ if (loginForm) {
   });
 }
 
-// Handle Logout
+// Contributor Logout
 document.querySelector('#logoutButton')?.addEventListener('click', async () => {
   try {
     if (authToken) {
       await fetch(`api.php?action=logout&token=${encodeURIComponent(authToken)}`);
     }
-  } catch (e) {
-    // Ignore network error on logout
-  }
+  } catch (e) {}
 
   authToken = null;
   currentUser = null;
@@ -163,7 +158,6 @@ document.querySelector('#logoutButton')?.addEventListener('click', async () => {
   showToast('You have been logged out.');
 });
 
-// Trigger authorization modal from buttons
 document.querySelector('#loginButton')?.addEventListener('click', () => loginDialog?.showModal());
 document.querySelector('#gateAuthBtn')?.addEventListener('click', () => loginDialog?.showModal());
 
@@ -273,7 +267,6 @@ function openTask(task) {
 
   taskDialog.showModal();
 
-  // If unauthorized button in modal is clicked
   document.querySelector('#taskModalAuthBtn')?.addEventListener('click', () => {
     taskDialog.close();
     loginDialog?.showModal();
@@ -306,8 +299,7 @@ function openTask(task) {
 
         taskDialog.close();
         renderAccount();
-        renderAdmin();
-        showToast('Submitted! Your work is saved to MySQL and waiting for review.');
+        showToast('Submitted! Your work is saved to MySQL and waiting for admin review.');
       } catch (err) {
         console.error(err);
         showToast('Error communicating with PHP server.');
@@ -402,115 +394,6 @@ async function renderAccount() {
 }
 
 // -----------------------------------------------------------------------------
-// ADMIN WORKSPACE & USER MANAGEMENT
-// -----------------------------------------------------------------------------
-
-async function renderAdmin() {
-  try {
-    const [subRes, secRes, userRes] = await Promise.all([
-      fetch('api.php?action=submissions&status=pending'),
-      fetch('api.php?action=security'),
-      fetch('api.php?action=admin_list_users')
-    ]);
-
-    const pending = await subRes.json();
-    const securityAccounts = await secRes.json();
-    const users = await userRes.json();
-
-    // 1. Review Queue
-    const reviewCountEl = document.querySelector('#reviewCount');
-    reviewCountEl.textContent = pending.length ? `${pending.length} submission${pending.length === 1 ? '' : 's'} waiting for review` : 'No submissions waiting';
-
-    const queueEl = document.querySelector('#reviewQueue');
-    if (pending.length === 0) {
-      queueEl.innerHTML = '<p class="empty-state">New task submissions will appear here for review.</p>';
-    } else {
-      queueEl.innerHTML = pending.map(item => `
-        <details class="review-item">
-          <summary>
-            <span>
-              <b>${escapeHtml(item.taskTitle)}</b>
-              <small>${escapeHtml(item.name)} · ${escapeHtml(item.email)}</small>
-            </span>
-            <i>REVIEW</i>
-          </summary>
-          <div class="review-body">
-            <div class="submitted-answer">${escapeHtml(item.response).replace(/\n/g, '<br>')}</div>
-            <form class="grade-form" data-submission="${escapeHtml(item.id)}">
-              <label>Grade
-                <select name="score" required>
-                  <option value="">Choose score</option>
-                  <option value="5">5 — Excellent</option>
-                  <option value="4">4 — Strong</option>
-                  <option value="3">3 — Meets expectations</option>
-                  <option value="2">2 — Needs improvement</option>
-                  <option value="1">1 — Inadequate</option>
-                </select>
-              </label>
-              <label>Feedback
-                <textarea name="feedback" maxlength="500" rows="2" placeholder="Optional notes for contributor"></textarea>
-              </label>
-              <button class="button button-bright" type="submit">Approve &amp; grade <span>✓</span></button>
-            </form>
-          </div>
-        </details>
-      `).join('');
-    }
-
-    // 2. User Management Table
-    const userTableBody = document.querySelector('#userTableBody');
-    if (userTableBody) {
-      if (!Array.isArray(users) || users.length === 0) {
-        userTableBody.innerHTML = '<tr><td colspan="4" class="empty-state">No users registered yet.</td></tr>';
-      } else {
-        userTableBody.innerHTML = users.map(u => `
-          <tr>
-            <td>
-              <strong>${escapeHtml(u.name)}</strong><br>
-              <small style="color:#8da098; font-family:var(--mono);">${escapeHtml(u.email)}</small>
-            </td>
-            <td>
-              <span class="badge-status ${u.role === 'admin' ? 'badge-active' : ''}">${escapeHtml(u.role.toUpperCase())}</span>
-            </td>
-            <td>
-              <span class="badge-status ${u.status === 'active' ? 'badge-active' : 'badge-disabled'}">${escapeHtml(u.status.toUpperCase())}</span>
-            </td>
-            <td>
-              <button type="button" class="security-control" data-user-action="toggle" data-user-id="${escapeHtml(u.id)}">
-                ${u.status === 'active' ? 'Disable' : 'Activate'}
-              </button>
-            </td>
-          </tr>
-        `).join('');
-      }
-    }
-
-    // 3. Security Accounts
-    const secContainer = document.querySelector('#securityAccounts');
-    const entries = Object.entries(securityAccounts || {});
-    if (entries.length === 0) {
-      secContainer.innerHTML = '<p class="empty-state">No flagged accounts.</p>';
-    } else {
-      secContainer.innerHTML = entries.map(([email, item]) => `
-        <article class="security-account">
-          <div>
-            <b>${escapeHtml(email)}</b>
-            <small>${item.status === 'disabled' ? 'ACCOUNT PAUSED' : item.status === 'flagged' ? 'FLAGGED · REVIEW NEEDED' : 'ACCESS RESTORED'} · ${escapeHtml(item.country || 'Country unavailable')}</small>
-          </div>
-          <div class="security-account-actions">
-            ${item.status !== 'disabled' ? `<button type="button" class="security-control" data-security-action="disable" data-email="${escapeHtml(email)}">Disable</button>` : ''}
-            <button type="button" class="security-control" data-security-action="restore" data-email="${escapeHtml(email)}">Restore</button>
-            <button type="button" class="security-control" data-security-action="clear" data-email="${escapeHtml(email)}">Clear</button>
-          </div>
-        </article>
-      `).join('');
-    }
-  } catch (err) {
-    console.error('Error rendering admin:', err);
-  }
-}
-
-// -----------------------------------------------------------------------------
 // EVENT LISTENERS INITIALIZATION
 // -----------------------------------------------------------------------------
 
@@ -590,190 +473,6 @@ function initEventListeners() {
     verificationDialog?.close();
   });
 
-  // Admin Add User Form
-  const addUserForm = document.querySelector('#addUserForm');
-  addUserForm?.addEventListener('submit', async event => {
-    event.preventDefault();
-    const name = document.querySelector('#newUserName').value.trim();
-    const email = document.querySelector('#newUserEmail').value.trim();
-    const password = document.querySelector('#newUserPassword').value;
-    const role = document.querySelector('#newUserRole').value;
-
-    try {
-      const res = await fetch('api.php?action=admin_add_user', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name, email, password, role })
-      });
-
-      const data = await res.json();
-      if (!res.ok) {
-        showToast(data.error || 'Failed to create user.');
-        return;
-      }
-
-      // Display newly generated credentials box
-      const credBox = document.querySelector('#newCredentialsBox');
-      document.querySelector('#credEmail').textContent = email;
-      document.querySelector('#credPass').textContent = password;
-      document.querySelector('#credRole').textContent = role.toUpperCase();
-      credBox.style.display = 'block';
-
-      // Setup Copy button
-      document.querySelector('#copyCredBtn').onclick = () => {
-        navigator.clipboard?.writeText(`GiveGrid Logins:\nEmail: ${email}\nPassword: ${password}\nURL: http://localhost/givegrid/`);
-        showToast('Logins copied to clipboard! Share with the user.');
-      };
-
-      addUserForm.reset();
-      showToast(`User ${name} added! Logins ready to share.`);
-      renderAdmin();
-    } catch (err) {
-      console.error(err);
-      showToast('Error creating user in database.');
-    }
-  });
-
-  // Admin Toggle User Status (Disable / Activate)
-  document.querySelector('#userTableBody')?.addEventListener('click', async event => {
-    const button = event.target.closest('[data-user-action="toggle"]');
-    if (!button) return;
-
-    const userId = button.dataset.userId;
-    try {
-      const res = await fetch('api.php?action=admin_toggle_user', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ id: userId, actionType: 'toggle' })
-      });
-
-      if (res.ok) {
-        showToast('User account status updated in MySQL.');
-        renderAdmin();
-      }
-    } catch (err) {
-      console.error(err);
-    }
-  });
-
-  // Admin Create Task Form
-  const taskForm = document.querySelector('#taskForm');
-  taskForm?.addEventListener('submit', async event => {
-    event.preventDefault();
-    const formData = new FormData(event.currentTarget);
-    const payload = {
-      title: formData.get('title'),
-      category: formData.get('category'),
-      description: formData.get('description'),
-      pay: formData.get('pay'),
-      time: formData.get('time')
-    };
-
-    try {
-      const res = await fetch('api.php?action=create_task', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload)
-      });
-
-      if (res.ok) {
-        taskForm.reset();
-        taskForm.elements.pay.value = 25;
-        taskForm.elements.time.value = '30 min';
-        await fetchTasks();
-        showToast('New opportunity published to Laragon MySQL database!');
-      }
-    } catch (err) {
-      console.error(err);
-      showToast('Failed to create task in PHP database.');
-    }
-  });
-
-  // Admin Grade Submission Delegation
-  document.querySelector('#reviewQueue')?.addEventListener('submit', async event => {
-    const form = event.target.closest('.grade-form');
-    if (!form) return;
-    event.preventDefault();
-
-    const submissionId = form.dataset.submission;
-    const formData = new FormData(form);
-    const payload = {
-      id: submissionId,
-      score: formData.get('score'),
-      feedback: formData.get('feedback')
-    };
-
-    try {
-      const res = await fetch('api.php?action=grade', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload)
-      });
-
-      if (res.ok) {
-        showToast('Submission approved and graded in MySQL!');
-        renderAdmin();
-        renderAccount();
-      }
-    } catch (err) {
-      console.error(err);
-      showToast('Failed to grade submission in PHP database.');
-    }
-  });
-
-  // Admin Security Flag Form
-  const secForm = document.querySelector('#securityFlagForm');
-  secForm?.addEventListener('submit', async event => {
-    event.preventDefault();
-    const formData = new FormData(event.currentTarget);
-    const payload = {
-      email: formData.get('email'),
-      country: formData.get('country')
-    };
-
-    try {
-      const res = await fetch('api.php?action=security_flag', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload)
-      });
-
-      if (res.ok) {
-        secForm.reset();
-        showToast('Contributor account flagged in Laragon MySQL database.');
-        renderAdmin();
-        renderAccount();
-      }
-    } catch (err) {
-      console.error(err);
-    }
-  });
-
-  // Admin Security Account Action Delegation
-  document.querySelector('#securityAccounts')?.addEventListener('click', async event => {
-    const button = event.target.closest('[data-security-action]');
-    if (!button) return;
-
-    const actionType = button.dataset.securityAction;
-    const email = button.dataset.email;
-
-    try {
-      const res = await fetch('api.php?action=security_action', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email, actionType })
-      });
-
-      if (res.ok) {
-        showToast(`Account security status updated in MySQL: ${actionType}`);
-        renderAdmin();
-        renderAccount();
-      }
-    } catch (err) {
-      console.error(err);
-    }
-  });
-
   // Mobile Menu Toggle
   const menuToggle = document.querySelector('.menu-toggle');
   const mainNav = document.querySelector('.main-nav');
@@ -796,7 +495,6 @@ async function startApp() {
   initEventListeners();
   updateAuthUI();
   await fetchTasks();
-  await renderAdmin();
 }
 
 document.addEventListener('DOMContentLoaded', startApp);
