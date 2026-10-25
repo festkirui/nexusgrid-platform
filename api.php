@@ -450,7 +450,7 @@ try {
             }
 
             // Find task info
-            $taskStmt = $pdo->prepare("SELECT title, category FROM tasks WHERE task_uid = ? OR id = ? LIMIT 1");
+            $taskStmt = $pdo->prepare("SELECT title, category, pay FROM tasks WHERE task_uid = ? OR id = ? LIMIT 1");
             $taskStmt->execute([$taskId, $taskId]);
             $task = $taskStmt->fetch();
 
@@ -482,7 +482,7 @@ try {
             }
 
             $input = getRequestData();
-            $submissionId = $input['id'] ?? null;
+            $submissionId = $input['id'] ?? $input['submissionId'] ?? null;
             $score = (float)($input['score'] ?? 5.0);
             $feedback = trim($input['feedback'] ?? '');
 
