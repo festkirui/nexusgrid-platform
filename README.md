@@ -8,8 +8,8 @@ A high-fidelity clone of [GiveGrid](https://givegrid.vercel.app/) with separate 
 
 | Page | URL | Description |
 |---|---|---|
-| **Contributor / User Page** | **[http://localhost/givegrid/](http://localhost/givegrid/)** (`index.php`) | Browse opportunities, submit responses, track contributor account & ratings. Protected by **"authorize me"** login. |
-| **Admin Portal Page** | **[http://localhost/givegrid/admin.php](http://localhost/givegrid/admin.php)** (`admin.php`) | Dedicated admin control center: add users & assign logins, review & grade submissions (1–5), publish new opportunities, and manage account security. |
+| **Contributor / User Page** | **[http://localhost/givegrid/](http://localhost/givegrid/)** (`index.php`) | Browse opportunities, submit responses, view accumulated earnings, track contributor account & ratings. Protected by **"authorize me"** login. |
+| **Admin Portal Page** | **[http://localhost/givegrid/admin.php](http://localhost/givegrid/admin.php)** (`admin.php`) | Dedicated admin control center: add users & assign logins, monitor completed tasks count & accumulated money per user, review & grade submissions (1–5), publish new opportunities, and manage account security. |
 
 ---
 
@@ -22,6 +22,12 @@ A high-fidelity clone of [GiveGrid](https://givegrid.vercel.app/) with separate 
 | **User Portal** | `festus@example.com` | `festus123` | Contributor |
 
 *(Admins can also add new contributors from `admin.php` and instantly copy generated logins to give to them!)*
+
+## 📊 User Task & Earnings Tracking
+
+- **Tasks Done:** Aggregated per user from approved submissions (`COUNT(CASE WHEN status = 'approved')`). Also displays pending task count.
+- **Accumulated Money:** Exact sum of pay rates for each user's approved tasks (`SUM(pay)`), rendered in neon mint (`$XX.XX`) in both the Admin User Management table and the Contributor Rating metrics card.
+- **Platform Total Payouts:** Real-time KPI counter on `admin.php` calculating the sum of earnings across all contributors.
 
 ---
 
