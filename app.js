@@ -362,6 +362,10 @@ async function renderAccount() {
     }
     document.querySelector('#gradedCount').textContent = acc.gradedCount;
     document.querySelector('#pendingCount').textContent = acc.pendingCount;
+    const earningsEl = document.querySelector('#accountEarnings');
+    if (earningsEl) {
+      earningsEl.textContent = `$${Number(acc.accumulatedMoney || 0).toFixed(2)}`;
+    }
     document.querySelector('#submissionLabel').textContent = `${subs.length} submission${subs.length === 1 ? '' : 's'} for ${email}`;
 
     // Submissions List

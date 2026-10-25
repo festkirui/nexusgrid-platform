@@ -28,6 +28,7 @@ CREATE TABLE IF NOT EXISTS `submissions` (
   `contributor_name` VARCHAR(120) NOT NULL,
   `contributor_email` VARCHAR(180) NOT NULL,
   `response_text` TEXT NOT NULL,
+  `pay` DECIMAL(10, 2) NOT NULL DEFAULT 0.00,
   `status` ENUM('pending', 'approved', 'rejected') NOT NULL DEFAULT 'pending',
   `score` DECIMAL(3, 1) NULL,
   `feedback` TEXT NULL,

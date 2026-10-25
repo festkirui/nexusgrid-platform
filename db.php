@@ -152,10 +152,17 @@ function initAndSeedDatabase(): void {
         $categoryIndex++;
     }
 
+    // Ensure pay column exists in submissions if needed
+    try {
+        $pdo->exec("ALTER TABLE submissions ADD COLUMN pay DECIMAL(10, 2) NOT NULL DEFAULT 0.00");
+    } catch (PDOException $e) {
+        // Column already exists
+    }
+
     // Seed Demo Submissions
     $insertSubStmt = $pdo->prepare("
-        INSERT INTO submissions (sub_uid, task_id, task_title, category, contributor_name, contributor_email, response_text, status, score, feedback, submitted_at)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        INSERT INTO submissions (sub_uid, task_id, task_title, category, contributor_name, contributor_email, response_text, pay, status, score, feedback, submitted_at)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     ");
 
     $insertSubStmt->execute([
@@ -166,6 +173,7 @@ function initAndSeedDatabase(): void {
         'Alex Rivera',
         'alex@example.com',
         'Rewrote the prompt explanation to remove jargon, used active voice, and provided a clean 3-point summary for non-technical users.',
+        22.00,
         'approved',
         5.0,
         'Excellent clarity and natural tone!',
@@ -180,6 +188,7 @@ function initAndSeedDatabase(): void {
         'Jordan Lee',
         'jordan@example.com',
         'Found edge case with empty list handling on line 14. Added type hints and exception handling for null pointer.',
+        38.00,
         'pending',
         null,
         '',

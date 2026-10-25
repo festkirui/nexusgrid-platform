@@ -140,23 +140,24 @@ document.querySelector('#adminLoginBtn')?.addEventListener('click', () => {
 
 async function loadAdminData() {
   try {
-    const [subRes, secRes, userRes, taskRes] = await Promise.all([
+    const [subRes, secRes, userRes, statsRes] = await Promise.all([
       fetch('api.php?action=submissions&status=pending'),
       fetch('api.php?action=security'),
       fetch('api.php?action=admin_list_users'),
-      fetch('api.php?action=tasks')
+      fetch('api.php?action=admin_stats')
     ]);
 
     const pending = await subRes.json();
     const securityAccounts = await secRes.json();
     const users = await userRes.json();
-    const taskData = await taskRes.json();
+    const stats = await statsRes.json();
 
     // 1. KPI Counters
-    document.querySelector('#kpiPendingCount').textContent = pending.length || 0;
-    document.querySelector('#kpiUserCount').textContent = Array.isArray(users) ? users.length : 0;
-    document.querySelector('#kpiTaskCount').textContent = taskData.total || 0;
-    document.querySelector('#kpiSecurityCount').textContent = Object.keys(securityAccounts || {}).length;
+    document.querySelector('#kpiPendingCount').textContent = stats.pendingCount ?? (pending.length || 0);
+    document.querySelector('#kpiApprovedCount').textContent = stats.approvedCount ?? 0;
+    document.querySelector('#kpiTotalPayouts').textContent = `$${Number(stats.totalPayouts || 0).toFixed(2)}`;
+    document.querySelector('#kpiUserCount').textContent = stats.userCount ?? (Array.isArray(users) ? users.length : 0);
+    document.querySelector('#kpiTaskCount').textContent = stats.taskCount ?? 0;
 
     // 2. Review Queue
     const reviewCountEl = document.querySelector('#reviewCount');
@@ -202,11 +203,11 @@ async function loadAdminData() {
       }
     }
 
-    // 3. User Management Table
+    // 3. User Management Table (Displays tasks completed & accumulated money)
     const userTableBody = document.querySelector('#userTableBody');
     if (userTableBody) {
       if (!Array.isArray(users) || users.length === 0) {
-        userTableBody.innerHTML = '<tr><td colspan="4" class="empty-state">No users registered yet.</td></tr>';
+        userTableBody.innerHTML = '<tr><td colspan="6" class="empty-state">No users registered yet.</td></tr>';
       } else {
         userTableBody.innerHTML = users.map(u => `
           <tr>
@@ -216,6 +217,14 @@ async function loadAdminData() {
             </td>
             <td>
               <span class="badge-status ${u.role === 'admin' ? 'badge-active' : ''}">${escapeHtml(u.role.toUpperCase())}</span>
+            </td>
+            <td>
+              <strong style="color:var(--text); font-size:12px;">${Number(u.tasks_completed || 0)} done</strong>
+              ${Number(u.tasks_pending || 0) > 0 ? `<br><small style="color:#e8c56e; font-family:var(--mono); font-size:9px;">(${u.tasks_pending} pending)</small>` : ''}
+              ${u.avg_rating ? `<br><small style="color:var(--mint); font-family:var(--mono); font-size:9px;">★ ${u.avg_rating}/5</small>` : ''}
+            </td>
+            <td>
+              <span style="color:var(--mint); font-weight:800; font-family:var(--mono); font-size:13px;">$${Number(u.accumulated_money || 0).toFixed(2)}</span>
             </td>
             <td>
               <span class="badge-status ${u.status === 'active' ? 'badge-active' : 'badge-disabled'}">${escapeHtml(u.status.toUpperCase())}</span>

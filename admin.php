@@ -75,11 +75,21 @@ initAndSeedDatabase();
       </div>
 
       <!-- KPI Summary Cards -->
-      <div class="rating-grid" style="grid-template-columns: repeat(4, 1fr); margin-bottom:30px;">
+      <div class="rating-grid" style="grid-template-columns: repeat(5, 1fr); margin-bottom:30px;">
         <article class="rating-card rating-main">
           <small>PENDING REVIEWS</small>
           <strong id="kpiPendingCount">0</strong>
           <p>Awaiting admin grading</p>
+        </article>
+        <article class="rating-card">
+          <small>TASKS COMPLETED</small>
+          <strong id="kpiApprovedCount">0</strong>
+          <p>Approved submissions</p>
+        </article>
+        <article class="rating-card" style="border-color:#436348;">
+          <small>ACCUMULATED PAYOUTS</small>
+          <strong id="kpiTotalPayouts" style="color:var(--mint);">$0.00</strong>
+          <p>Total contributor earnings</p>
         </article>
         <article class="rating-card">
           <small>REGISTERED USERS</small>
@@ -90,11 +100,6 @@ initAndSeedDatabase();
           <small>ACTIVE OPPORTUNITIES</small>
           <strong id="kpiTaskCount">0</strong>
           <p>Published on grid</p>
-        </article>
-        <article class="rating-card">
-          <small>SECURITY ALERTS</small>
-          <strong id="kpiSecurityCount">0</strong>
-          <p>Flagged / Paused</p>
         </article>
       </div>
 
@@ -152,8 +157,10 @@ initAndSeedDatabase();
               <table class="user-table">
                 <thead>
                   <tr>
-                    <th>NAME &amp; EMAIL</th>
+                    <th>CONTRIBUTOR</th>
                     <th>ROLE</th>
+                    <th>TASKS DONE</th>
+                    <th>ACCUMULATED EARNINGS</th>
                     <th>STATUS</th>
                     <th>ACTION</th>
                   </tr>

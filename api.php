@@ -181,8 +181,55 @@ try {
             break;
 
         case 'admin_list_users':
-            $stmt = $pdo->query("SELECT id, name, email, role, status, created_at AS createdAt, last_login AS lastLogin FROM users ORDER BY id DESC");
+            $sql = "
+                SELECT 
+                    u.id, 
+                    u.name, 
+                    u.email, 
+                    u.role, 
+                    u.status, 
+                    u.created_at AS createdAt, 
+                    u.last_login AS lastLogin,
+                    COUNT(CASE WHEN s.status = 'approved' THEN 1 END) AS tasks_completed,
+                    COUNT(CASE WHEN s.status = 'pending' THEN 1 END) AS tasks_pending,
+                    COUNT(s.id) AS tasks_total,
+                    COALESCE(SUM(CASE WHEN s.status = 'approved' THEN s.pay ELSE 0 END), 0.00) AS accumulated_money,
+                    ROUND(AVG(CASE WHEN s.status = 'approved' AND s.score IS NOT NULL THEN s.score END), 1) AS avg_rating
+                FROM users u
+                LEFT JOIN submissions s ON LOWER(u.email) = LOWER(s.contributor_email)
+                GROUP BY u.id, u.name, u.email, u.role, u.status, u.created_at, u.last_login
+                ORDER BY u.id DESC
+            ";
+            $stmt = $pdo->query($sql);
             echo json_encode($stmt->fetchAll());
+            break;
+
+        case 'admin_stats':
+            $pendingStmt = $pdo->query("SELECT COUNT(*) FROM submissions WHERE status = 'pending'");
+            $pendingCount = (int)$pendingStmt->fetchColumn();
+
+            $userStmt = $pdo->query("SELECT COUNT(*) FROM users");
+            $userCount = (int)$userStmt->fetchColumn();
+
+            $taskStmt = $pdo->query("SELECT COUNT(*) FROM tasks");
+            $taskCount = (int)$taskStmt->fetchColumn();
+
+            $secStmt = $pdo->query("SELECT COUNT(*) FROM account_controls");
+            $secCount = (int)$secStmt->fetchColumn();
+
+            $approvedStmt = $pdo->query("SELECT COUNT(*), COALESCE(SUM(pay), 0.00) FROM submissions WHERE status = 'approved'");
+            $approvedRow = $approvedStmt->fetch(PDO::FETCH_NUM);
+            $approvedCount = (int)($approvedRow[0] ?? 0);
+            $totalPayouts = (float)($approvedRow[1] ?? 0);
+
+            echo json_encode([
+                'pendingCount' => $pendingCount,
+                'userCount' => $userCount,
+                'taskCount' => $taskCount,
+                'secCount' => $secCount,
+                'approvedCount' => $approvedCount,
+                'totalPayouts' => round($totalPayouts, 2)
+            ]);
             break;
 
         case 'admin_toggle_user':
@@ -409,13 +456,14 @@ try {
 
             $taskTitle = $task ? $task['title'] : 'Task';
             $category = $task ? $task['category'] : 'General';
+            $pay = $task ? (float)$task['pay'] : 25.00;
             $subUid = 'sub-' . time() . '-' . rand(100, 999);
 
             $stmt = $pdo->prepare("
-                INSERT INTO submissions (sub_uid, task_id, task_title, category, contributor_name, contributor_email, response_text, status, submitted_at)
-                VALUES (?, ?, ?, ?, ?, ?, ?, 'pending', NOW())
+                INSERT INTO submissions (sub_uid, task_id, task_title, category, contributor_name, contributor_email, response_text, pay, status, submitted_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'pending', NOW())
             ");
-            $stmt->execute([$subUid, $taskId, $taskTitle, $category, $name, $email, $response]);
+            $stmt->execute([$subUid, $taskId, $taskTitle, $category, $name, $email, $response, $pay]);
 
             echo json_encode([
                 'success' => true,
@@ -483,7 +531,8 @@ try {
                     COUNT(*) AS totalCount,
                     SUM(CASE WHEN status = 'approved' AND score IS NOT NULL THEN 1 ELSE 0 END) AS gradedCount,
                     SUM(CASE WHEN status = 'pending' THEN 1 ELSE 0 END) AS pendingCount,
-                    AVG(CASE WHEN status = 'approved' AND score IS NOT NULL THEN score ELSE NULL END) AS avgScore
+                    AVG(CASE WHEN status = 'approved' AND score IS NOT NULL THEN score ELSE NULL END) AS avgScore,
+                    COALESCE(SUM(CASE WHEN status = 'approved' THEN pay ELSE 0 END), 0.00) AS accumulatedMoney
                 FROM submissions
                 WHERE LOWER(contributor_email) = ?
             ");
@@ -510,6 +559,7 @@ try {
                 'gradedCount' => (int)$stats['gradedCount'],
                 'pendingCount' => (int)$stats['pendingCount'],
                 'totalCount' => (int)$stats['totalCount'],
+                'accumulatedMoney' => round((float)($stats['accumulatedMoney'] ?? 0), 2),
                 'isVerified' => !empty($verified),
                 'security' => $security ?: null
             ]);

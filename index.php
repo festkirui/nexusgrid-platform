@@ -173,11 +173,16 @@ initAndSeedDatabase();
           <p class="verification-note">Secure ID verification simulation mode. All data is saved to your Laragon MySQL database.</p>
         </article>
 
-        <div class="rating-grid">
+        <div class="rating-grid" style="grid-template-columns: 1.2fr 1fr 1fr 1fr;">
           <article class="rating-card rating-main">
             <small>OVERALL RATING</small>
             <strong id="accountRating">—<span>/5</span></strong>
             <p id="ratingNote">Your rating appears after an admin grades approved work.</p>
+          </article>
+          <article class="rating-card" style="border-color:#436348;">
+            <small>ACCUMULATED EARNINGS</small>
+            <strong id="accountEarnings" style="color:var(--mint);">$0.00</strong>
+            <p>Total earned from approved tasks</p>
           </article>
           <article class="rating-card">
             <small>GRADED TASKS</small>
