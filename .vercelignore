@@ -1,5 +1,9 @@
+# .vercelignore — files excluded from Vercel deployment
+*.php
+*.zip
+database.sql
+schema.sql
+HOSTING_GUIDE.md
+export_to_postgres.php
+node_modules
 .git
-.gitignore
-*.log
-scratch/
-test_*.php

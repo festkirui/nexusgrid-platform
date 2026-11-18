@@ -1,55 +1,31 @@
 {
   "version": 2,
-  "functions": {
-    "api.php": {
-      "runtime": "vercel-php@0.7.1"
-    },
-    "index.php": {
-      "runtime": "vercel-php@0.7.1"
-    },
-    "admin.php": {
-      "runtime": "vercel-php@0.7.1"
-    }
-  },
-  "routes": [
+  "builds": [
     {
-      "src": "/api.php",
-      "dest": "/api.php"
+      "src": "api/index.js",
+      "use": "@vercel/node"
     },
     {
-      "src": "/admin.php",
-      "dest": "/admin.php"
+      "src": "*.html",
+      "use": "@vercel/static"
     },
     {
-      "src": "/index.php",
-      "dest": "/index.php"
+      "src": "*.css",
+      "use": "@vercel/static"
     },
     {
-      "src": "/styles.css",
-      "dest": "/styles.css"
-    },
-    {
-      "src": "/app.js",
-      "dest": "/app.js"
-    },
-    {
-      "src": "/admin.js",
-      "dest": "/admin.js"
-    },
-    {
-      "src": "/nexusgrid-production.zip",
-      "dest": "/nexusgrid-production.zip"
-    },
-    {
-      "src": "/",
-      "dest": "/index.php"
-    },
-    {
-      "src": "/(.*)",
-      "dest": "/index.php"
+      "src": "*.js",
+      "use": "@vercel/static",
+      "config": { "excludeFiles": "api/**" }
     }
   ],
-  "env": {
-    "DB_CONNECTION": "pgsql"
-  }
+  "routes": [
+    { "src": "/api/(.*)", "dest": "/api/index.js" },
+    { "src": "/api",      "dest": "/api/index.js" },
+    { "src": "/admin",    "dest": "/admin.html" },
+    { "src": "/admin.html", "dest": "/admin.html" },
+    { "src": "/",         "dest": "/index.html" },
+    { "src": "/(.*\\.css|.*\\.js|.*\\.svg|.*\\.png|.*\\.ico)", "dest": "/$1" },
+    { "src": "/(.*)",     "dest": "/index.html" }
+  ]
 }

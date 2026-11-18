@@ -1,5 +1,5 @@
-// NexusGrid Contributor / User Portal Controller (app.js)
-// Dedicated logic for index.php connecting with api.php & WampServer MySQL
+﻿// NexusGrid Contributor / User Portal Controller (app.js)
+// Dedicated logic for index.php connecting with /api & WampServer MySQL
 
 let tasks = [];
 let selectedFilter = 'All';
@@ -30,7 +30,7 @@ function updateHeroClock() {
   if (clockEl) {
     const now = new Date();
     const pad = n => String(n).padStart(2, '0');
-    clockEl.textContent = `ONLINE · ${pad(now.getHours())}:${pad(now.getMinutes())}:${pad(now.getSeconds())}`;
+    clockEl.textContent = `ONLINE Â· ${pad(now.getHours())}:${pad(now.getMinutes())}:${pad(now.getSeconds())}`;
   }
 }
 setInterval(updateHeroClock, 1000);
@@ -73,7 +73,7 @@ function updateAuthUI() {
     if (loginBtn) loginBtn.style.display = 'none';
     if (authStatusBadge) {
       authStatusBadge.style.display = 'flex';
-      navUserName.textContent = `👤 ${currentUser.name}`;
+      navUserName.textContent = `ðŸ‘¤ ${currentUser.name}`;
     }
     if (authGate) authGate.style.display = 'none';
     if (dashboard) dashboard.style.display = 'block';
@@ -118,7 +118,7 @@ if (loginForm) {
     }
 
     try {
-      const res = await fetch('api.php?action=login', {
+      const res = await fetch('/api/index.js?action=login', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email, password })
@@ -146,7 +146,7 @@ if (loginForm) {
     } finally {
       if (submitBtn) {
         submitBtn.disabled = false;
-        submitBtn.innerHTML = 'authorize me <span>→</span>';
+        submitBtn.innerHTML = 'authorize me <span>â†’</span>';
       }
     }
   });
@@ -156,7 +156,7 @@ if (loginForm) {
 document.querySelector('#logoutButton')?.addEventListener('click', async () => {
   try {
     if (authToken) {
-      await fetch(`api.php?action=logout&token=${encodeURIComponent(authToken)}`);
+      await fetch(`/api?action=logout&token=${encodeURIComponent(authToken)}`);
     }
   } catch (e) {}
 
@@ -175,7 +175,7 @@ document.querySelector('#loginButton')?.addEventListener('click', () => loginDia
 document.querySelector('#gateAuthBtn')?.addEventListener('click', () => loginDialog?.showModal());
 document.querySelector('#gateTasksLoginBtn')?.addEventListener('click', () => loginDialog?.showModal());
 
-// Hero "Explore streams" button — open login if not authenticated, else scroll to tasks
+// Hero "Explore streams" button â€” open login if not authenticated, else scroll to tasks
 document.querySelector('#heroExploreBtn')?.addEventListener('click', () => {
   if (currentUser && authToken) {
     document.querySelector('#opportunities')?.scrollIntoView({ behavior: 'smooth' });
@@ -191,7 +191,7 @@ document.querySelector('#heroExploreBtn')?.addEventListener('click', () => {
 async function fetchTasks() {
   try {
     const sort = document.querySelector('#sortSelect')?.value || 'recommended';
-    const res = await fetch(`api.php?action=tasks&sort=${sort}`);
+    const res = await fetch(`/api?action=tasks&sort=${sort}`);
     const data = await res.json();
     tasks = data.tasks || [];
     renderCategoryFilters(data.counts || {});
@@ -235,7 +235,7 @@ function getStreamMeta(streamId) {
         pill: 'RLHF STREAM',
         badgeClass: 'stream-rlhf',
         color: '#818cf8',
-        icon: '⚖'
+        icon: 'âš–'
       };
     case 'FACT_CHECKING':
       return {
@@ -243,7 +243,7 @@ function getStreamMeta(streamId) {
         pill: 'FACT AUDIT',
         badgeClass: 'stream-fact',
         color: '#38bdf8',
-        icon: '✓'
+        icon: 'âœ“'
       };
     case 'TEXT_CLASSIFICATION':
       return {
@@ -251,7 +251,7 @@ function getStreamMeta(streamId) {
         pill: 'TAXONOMY',
         badgeClass: 'stream-taxo',
         color: '#34d399',
-        icon: '🏷'
+        icon: 'ðŸ·'
       };
     case 'SENTIMENT_ANALYSIS':
       return {
@@ -259,7 +259,7 @@ function getStreamMeta(streamId) {
         pill: 'AFFECTIVE',
         badgeClass: 'stream-sent',
         color: '#fbbf24',
-        icon: '♡'
+        icon: 'â™¡'
       };
     default:
       return {
@@ -267,7 +267,7 @@ function getStreamMeta(streamId) {
         pill: 'STREAM ACTIVE',
         badgeClass: 'stream-default',
         color: '#00dfa2',
-        icon: '✳'
+        icon: 'âœ³'
       };
   }
 }
@@ -298,13 +298,13 @@ function renderTasks() {
       <h3>${escapeHtml(task.title)}</h3>
       <p>${escapeHtml(task.description)}</p>
       <div class="task-meta">
-        <span>◷ ${escapeHtml(task.time)}</span>
-        <span>◇ ${escapeHtml(task.level || 'All levels')}</span>
+        <span>â—· ${escapeHtml(task.time)}</span>
+        <span>â—‡ ${escapeHtml(task.level || 'All levels')}</span>
         <span class="pay">$${Number(task.pay).toFixed(2)} / task</span>
       </div>
       <div class="task-footer">
-        <small>Stream Active · Remote</small>
-        <button class="task-open" data-task="${escapeHtml(task.id)}">Evaluate <span>↗</span></button>
+        <small>Stream Active Â· Remote</small>
+        <button class="task-open" data-task="${escapeHtml(task.id)}">Evaluate <span>â†—</span></button>
       </div>
     </article>
   `;
@@ -337,12 +337,12 @@ function openTask(task) {
   const meta = getStreamMeta(streamId);
 
   dialogContent.innerHTML = `
-    <div class="eyebrow"><span class="pulse"></span> [${escapeHtml(task.uid || 'TASK')}] ${escapeHtml(meta.label.toUpperCase())} · REMOTE</div>
+    <div class="eyebrow"><span class="pulse"></span> [${escapeHtml(task.uid || 'TASK')}] ${escapeHtml(meta.label.toUpperCase())} Â· REMOTE</div>
     <h2>${escapeHtml(task.title)}</h2>
     <p style="font-size: 15px; color: #cbd5e1; margin-bottom: 14px;">${escapeHtml(task.description)}</p>
     <div class="dialog-meta" style="margin-bottom: 16px;">
-      <span>◷ Time Limit: ${escapeHtml(task.time)}</span>
-      <span>◇ ${escapeHtml(task.level || 'All levels')}</span>
+      <span>â—· Time Limit: ${escapeHtml(task.time)}</span>
+      <span>â—‡ ${escapeHtml(task.level || 'All levels')}</span>
       <span style="color: var(--mint); font-weight: 700;">$${Number(task.pay).toFixed(2)} Instant Credit</span>
     </div>
 
@@ -360,14 +360,14 @@ function openTask(task) {
       <div class="nexus-responses-grid">
         <div class="nexus-response-box response-a">
           <div class="response-header" style="margin-bottom:12px;">
-            <div style="font-size:11px; font-weight:700; text-transform:uppercase; letter-spacing:0.1em; color:#818cf8; margin-bottom:4px;">Step 1 — Response A</div>
+            <div style="font-size:11px; font-weight:700; text-transform:uppercase; letter-spacing:0.1em; color:#818cf8; margin-bottom:4px;">Step 1 â€” Response A</div>
             <span class="badge badge-a">Model Response A</span>
           </div>
           <div style="font-size:13.5px; color:#cbd5e1; line-height:1.7; white-space:pre-wrap; flex:1;">${escapeHtml(task.response_a)}</div>
         </div>
         <div class="nexus-response-box response-b">
           <div class="response-header" style="margin-bottom:12px;">
-            <div style="font-size:11px; font-weight:700; text-transform:uppercase; letter-spacing:0.1em; color:#00dfa2; margin-bottom:4px;">Step 2 — Response B</div>
+            <div style="font-size:11px; font-weight:700; text-transform:uppercase; letter-spacing:0.1em; color:#00dfa2; margin-bottom:4px;">Step 2 â€” Response B</div>
             <span class="badge badge-b">Model Response B</span>
           </div>
           <div style="font-size:13.5px; color:#cbd5e1; line-height:1.7; white-space:pre-wrap; flex:1;">${escapeHtml(task.response_b)}</div>
@@ -385,11 +385,11 @@ function openTask(task) {
     ${!isAuth ? `
       <div class="auth-gate-box" style="margin-top:15px; padding:20px;">
         <p style="color:#dce5df; margin-bottom:10px;"><strong>Authorization Required:</strong> Only authorized NexusGrid contributors can submit evaluations.</p>
-        <button class="button button-bright" id="taskModalAuthBtn" type="button">authorize me <span>→</span></button>
+        <button class="button button-bright" id="taskModalAuthBtn" type="button">authorize me <span>â†’</span></button>
       </div>
     ` : (userAccountData && userAccountData.todayCount >= 2) ? `
       <div class="auth-gate-box" style="margin-top:20px; padding:28px 20px; border:1px solid #f59e0b; background:rgba(245, 158, 11, 0.08); border-radius:8px;">
-        <div style="font-size:32px; margin-bottom:8px;">⏳</div>
+        <div style="font-size:32px; margin-bottom:8px;">â³</div>
         <h3 style="color:#fbbf24; margin:0 0 8px; font-size:16px; font-weight:800; text-transform:uppercase; letter-spacing:0.05em;">Daily Task Limit Reached (2/2)</h3>
         <p style="color:#cbd5e1; font-size:13px; line-height:1.6; margin:0; max-width:540px;">
           To ensure high evaluation rigor and quality control, NexusGrid contributors are limited to <strong>2 completed evaluations per day</strong>. You have completed your 2 tasks for today. Your daily limit will reset tomorrow.
@@ -404,10 +404,10 @@ function openTask(task) {
         <!-- Step 1: Audit Response A -->
         <div class="eval-section">
           <div class="eval-step-header">
-            <h3>Step 1 — Score &amp; Audit Response A</h3>
+            <h3>Step 1 â€” Score &amp; Audit Response A</h3>
           </div>
           <div class="eval-score-card">
-            <h4>Dimensional Scoring (1–5 Scale) — Response A</h4>
+            <h4>Dimensional Scoring (1â€“5 Scale) â€” Response A</h4>
             <div class="eval-dimensions-grid">
               ${[
                 { id: 'acc_a', label: 'Factual Accuracy' },
@@ -452,10 +452,10 @@ function openTask(task) {
         <!-- Step 2: Audit Response B -->
         <div class="eval-section">
           <div class="eval-step-header step-b">
-            <h3>Step 2 — Score &amp; Audit Response B</h3>
+            <h3>Step 2 â€” Score &amp; Audit Response B</h3>
           </div>
           <div class="eval-score-card">
-            <h4>Dimensional Scoring (1–5 Scale) — Response B</h4>
+            <h4>Dimensional Scoring (1â€“5 Scale) â€” Response B</h4>
             <div class="eval-dimensions-grid">
               ${[
                 { id: 'acc_b', label: 'Factual Accuracy' },
@@ -500,7 +500,7 @@ function openTask(task) {
         <!-- Step 3: Compare & Decide -->
         <div class="eval-section">
           <div class="eval-step-header step-compare">
-            <h3>Step 3 — Compare &amp; Decide Winner *</h3>
+            <h3>Step 3 â€” Compare &amp; Decide Winner *</h3>
           </div>
           <div class="eval-checks-grid" style="margin-bottom:14px;">
             <div class="eval-check-box">
@@ -522,17 +522,17 @@ function openTask(task) {
 
           <div class="nexus-winner-cards" id="winnerCardsContainer">
             <div class="nexus-winner-card" data-winner="Model A">
-              <span style="font-size:24px;">🏆</span>
+              <span style="font-size:24px;">ðŸ†</span>
               <span class="winner-title">WINNER: MODEL A</span>
               <span class="winner-desc">Response A is superior</span>
             </div>
             <div class="nexus-winner-card" data-winner="Tie / Equivalent">
-              <span style="font-size:24px;">⚖</span>
+              <span style="font-size:24px;">âš–</span>
               <span class="winner-title">TIE / EQUIVALENT</span>
               <span class="winner-desc">Both responses are comparable</span>
             </div>
             <div class="nexus-winner-card card-b" data-winner="Model B">
-              <span style="font-size:24px;">🏆</span>
+              <span style="font-size:24px;">ðŸ†</span>
               <span class="winner-title">WINNER: MODEL B</span>
               <span class="winner-desc">Response B is superior</span>
             </div>
@@ -542,7 +542,7 @@ function openTask(task) {
         <!-- Step 4: Quality Control & Justification -->
         <div class="eval-section">
           <div class="eval-step-header step-qc">
-            <h3>Step 4 — Quality Control &amp; Technical Justification *</h3>
+            <h3>Step 4 â€” Quality Control &amp; Technical Justification *</h3>
           </div>
           <label style="display:block;">
             <span style="font-size:12px; color:#cbd5e1; font-weight:600; display:block; margin-bottom:8px;">Explain your audit logic in technical detail (Minimum 100 characters required)</span>
@@ -551,7 +551,7 @@ function openTask(task) {
           </label>
         </div>
 
-        <button class="nexus-submit-btn" type="submit" id="submitReviewBtn">FINAL SUBMIT &amp; INSTANT CREDIT <span>🛡️</span></button>
+        <button class="nexus-submit-btn" type="submit" id="submitReviewBtn">FINAL SUBMIT &amp; INSTANT CREDIT <span>ðŸ›¡ï¸</span></button>
       </form>
     `}
   `;
@@ -637,7 +637,7 @@ function openTask(task) {
         return;
       }
 
-      // Collect all dimensional rating scores (1–5 buttons)
+      // Collect all dimensional rating scores (1â€“5 buttons)
       const dimScores = {};
       dialogContent.querySelectorAll('.eval-btn-group').forEach(group => {
         const dim = group.dataset.dim;
@@ -651,7 +651,7 @@ function openTask(task) {
         if (btn.dataset.check) pillValues[btn.dataset.check] = btn.dataset.val;
       });
 
-      // Auto-calculate score: average of all dimensional ratings (1–5 scale)
+      // Auto-calculate score: average of all dimensional ratings (1â€“5 scale)
       const dimVals = Object.values(dimScores).filter(v => !isNaN(v));
       const autoScore = dimVals.length > 0
         ? Math.round((dimVals.reduce((s, v) => s + v, 0) / dimVals.length) * 100) / 100
@@ -671,7 +671,7 @@ function openTask(task) {
       };
 
       try {
-        const res = await fetch('api.php?action=create_submission', {
+        const res = await fetch('/api/index.js?action=create_submission', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(payload)
@@ -704,8 +704,8 @@ async function renderAccount() {
 
   try {
     const [accRes, subRes] = await Promise.all([
-      fetch(`api.php?action=account&email=${encodeURIComponent(email)}`),
-      fetch(`api.php?action=submissions&email=${encodeURIComponent(email)}`)
+      fetch(`/api?action=account&email=${encodeURIComponent(email)}`),
+      fetch(`/api?action=submissions&email=${encodeURIComponent(email)}`)
     ]);
 
     const acc = await accRes.json();
@@ -742,7 +742,7 @@ async function renderAccount() {
     const accountRatingEl = document.querySelector('#accountRating');
     const ratingNoteEl = document.querySelector('#ratingNote');
     if (accountRatingEl) {
-      accountRatingEl.innerHTML = acc.rating !== null ? `${Number(acc.rating).toFixed(1)}<span>/5</span>` : '—<span>/5</span>';
+      accountRatingEl.innerHTML = acc.rating !== null ? `${Number(acc.rating).toFixed(1)}<span>/5</span>` : 'â€”<span>/5</span>';
     }
     if (ratingNoteEl) {
       ratingNoteEl.textContent = acc.rating !== null ? 'Average rating across your approved and graded tasks.' : 'Your rating appears after an admin grades approved work.';
@@ -779,14 +779,14 @@ async function renderAccount() {
           <article class="submission-row">
             <div class="submission-main">
               <span class="submission-status status-${item.status}">
-                ${item.status === 'approved' ? 'APPROVED · GRADED' : item.status === 'pending' ? 'PENDING REVIEW' : 'REVISION REQUESTED'}
+                ${item.status === 'approved' ? 'APPROVED Â· GRADED' : item.status === 'pending' ? 'PENDING REVIEW' : 'REVISION REQUESTED'}
               </span>
               <h4>${escapeHtml(item.taskTitle)}</h4>
               <p>${escapeHtml(item.response)}</p>
               ${item.feedback ? `<small class="feedback-note">Admin feedback: ${escapeHtml(item.feedback)}</small>` : ''}
             </div>
             <div class="submission-score">
-              ${item.status === 'approved' ? `<strong>${Number(item.score).toFixed(1)}<small>/5</small></strong>` : '<span>—</span>'}
+              ${item.status === 'approved' ? `<strong>${Number(item.score).toFixed(1)}<small>/5</small></strong>` : '<span>â€”</span>'}
               <small>${new Date(item.submittedAt).toLocaleDateString()}</small>
             </div>
           </article>
@@ -863,7 +863,7 @@ function initEventListeners() {
     const docType = document.querySelector('#docType')?.value || 'passport';
 
     try {
-      const res = await fetch('api.php?action=verify', {
+      const res = await fetch('/api/index.js?action=verify', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email, docType })
@@ -903,3 +903,4 @@ async function startApp() {
 }
 
 document.addEventListener('DOMContentLoaded', startApp);
+

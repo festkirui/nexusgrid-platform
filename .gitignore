@@ -1,15 +1,20 @@
-# Git ignore for NexusGrid
+# Git/Vercel ignore for NexusGrid
 
 # Config with credentials — NEVER commit
 config.php
 
-# Local exports & temp files
+# PHP legacy files (replaced by Node.js)
 export_to_postgres.php
+
+# Node modules (installed on deploy)
+node_modules/
+
+# Vercel build output
+.vercel/
+
+# Local dev logs
 *.log
 *.tmp
-
-# Node
-node_modules/
 
 # OS files
 .DS_Store
@@ -19,5 +24,5 @@ Thumbs.db
 .vscode/
 .idea/
 
-# ZIP artifacts (download from releases)
+# ZIP artifacts
 nexusgrid-production.zip
