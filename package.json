@@ -1,0 +1,11 @@
+{
+  "name": "nexusgrid-platform-preview",
+  "version": "1.0.0",
+  "private": true,
+  "scripts": {
+    "dev": "php-wasm-cli -S 0.0.0.0:3000 -t ."
+  },
+  "devDependencies": {
+    "@php-wasm/cli": "3.1.64"
+  }
+}
