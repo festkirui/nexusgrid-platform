@@ -1,5 +1,5 @@
-// GiveGrid Contributor / User Portal Controller (app.js)
-// Dedicated logic for index.php connecting with api.php & Laragon MySQL
+// NexusGrid Contributor / User Portal Controller (app.js)
+// Dedicated logic for index.php connecting with api.php & WampServer MySQL
 
 let tasks = [];
 let selectedFilter = 'All';
@@ -7,10 +7,11 @@ let shownCount = 12;
 const pageSize = 12;
 
 // Contributor Auth State
-let authToken = localStorage.getItem('givegrid_auth_token') || null;
+let authToken = localStorage.getItem('nexusgrid_auth_token') || localStorage.getItem('givegrid_auth_token') || null;
 let currentUser = null;
+let userAccountData = null;
 try {
-  currentUser = JSON.parse(localStorage.getItem('givegrid_auth_user'));
+  currentUser = JSON.parse(localStorage.getItem('nexusgrid_auth_user') || localStorage.getItem('givegrid_auth_user'));
 } catch (e) {
   currentUser = null;
 }
@@ -65,6 +66,8 @@ function updateAuthUI() {
   const navUserName = document.querySelector('#navUserName');
   const authGate = document.querySelector('#authGateContainer');
   const dashboard = document.querySelector('#contributorDashboard');
+  const opportunitiesSection = document.querySelector('#opportunities');
+  const tasksLoginGate = document.querySelector('#tasksLoginGate');
 
   if (currentUser && authToken) {
     if (loginBtn) loginBtn.style.display = 'none';
@@ -74,6 +77,10 @@ function updateAuthUI() {
     }
     if (authGate) authGate.style.display = 'none';
     if (dashboard) dashboard.style.display = 'block';
+
+    // Show tasks, hide the gate
+    if (opportunitiesSection) opportunitiesSection.style.display = '';
+    if (tasksLoginGate) tasksLoginGate.style.display = 'none';
 
     const accountEmailInput = document.querySelector('#accountEmail');
     if (accountEmailInput) {
@@ -89,6 +96,10 @@ function updateAuthUI() {
     if (authStatusBadge) authStatusBadge.style.display = 'none';
     if (authGate) authGate.style.display = 'flex';
     if (dashboard) dashboard.style.display = 'none';
+
+    // Hide tasks, show the gate
+    if (opportunitiesSection) opportunitiesSection.style.display = 'none';
+    if (tasksLoginGate) tasksLoginGate.style.display = '';
   }
 }
 
@@ -121,9 +132,9 @@ if (loginForm) {
 
       authToken = data.token;
       currentUser = data.user;
-      localStorage.setItem('givegrid_auth_token', authToken);
-      localStorage.setItem('givegrid_auth_user', JSON.stringify(currentUser));
-      localStorage.setItem('givegrid_account_email', currentUser.email);
+      localStorage.setItem('nexusgrid_auth_token', authToken);
+      localStorage.setItem('nexusgrid_auth_user', JSON.stringify(currentUser));
+      localStorage.setItem('nexusgrid_account_email', currentUser.email);
 
       updateAuthUI();
       loginDialog?.close();
@@ -151,6 +162,8 @@ document.querySelector('#logoutButton')?.addEventListener('click', async () => {
 
   authToken = null;
   currentUser = null;
+  localStorage.removeItem('nexusgrid_auth_token');
+  localStorage.removeItem('nexusgrid_auth_user');
   localStorage.removeItem('givegrid_auth_token');
   localStorage.removeItem('givegrid_auth_user');
 
@@ -160,6 +173,16 @@ document.querySelector('#logoutButton')?.addEventListener('click', async () => {
 
 document.querySelector('#loginButton')?.addEventListener('click', () => loginDialog?.showModal());
 document.querySelector('#gateAuthBtn')?.addEventListener('click', () => loginDialog?.showModal());
+document.querySelector('#gateTasksLoginBtn')?.addEventListener('click', () => loginDialog?.showModal());
+
+// Hero "Explore streams" button — open login if not authenticated, else scroll to tasks
+document.querySelector('#heroExploreBtn')?.addEventListener('click', () => {
+  if (currentUser && authToken) {
+    document.querySelector('#opportunities')?.scrollIntoView({ behavior: 'smooth' });
+  } else {
+    loginDialog?.showModal();
+  }
+});
 
 // -----------------------------------------------------------------------------
 // TASKS CATALOG
@@ -171,10 +194,81 @@ async function fetchTasks() {
     const res = await fetch(`api.php?action=tasks&sort=${sort}`);
     const data = await res.json();
     tasks = data.tasks || [];
+    renderCategoryFilters(data.counts || {});
     renderTasks();
   } catch (err) {
     console.error('Failed to load tasks from PHP API:', err);
     showToast('Failed to load opportunities from PHP database.');
+  }
+}
+
+function renderCategoryFilters(counts) {
+  const bar = document.querySelector('#categoryFilterBar');
+  if (!bar) return;
+
+  const categories = Object.keys(counts).filter(c => c !== 'All').sort();
+  let html = `<button class="filter ${selectedFilter === 'All' ? 'active' : ''}" data-filter="All">All tasks <span data-filter-count>${counts['All'] || tasks.length}</span></button>`;
+
+  categories.forEach(cat => {
+    const isActive = selectedFilter === cat;
+    html += `<button class="filter ${isActive ? 'active' : ''}" data-filter="${escapeHtml(cat)}">${escapeHtml(cat)} <span data-filter-count>${counts[cat] || 0}</span></button>`;
+  });
+
+  bar.innerHTML = html;
+
+  bar.querySelectorAll('.filter').forEach(btn => {
+    btn.addEventListener('click', () => {
+      bar.querySelector('.filter.active')?.classList.remove('active');
+      btn.classList.add('active');
+      selectedFilter = btn.dataset.filter;
+      shownCount = pageSize;
+      renderTasks();
+    });
+  });
+}
+
+function getStreamMeta(streamId) {
+  switch (streamId) {
+    case 'PREFERENCE_RANKING':
+      return {
+        label: 'RLHF Preference',
+        pill: 'RLHF STREAM',
+        badgeClass: 'stream-rlhf',
+        color: '#818cf8',
+        icon: '⚖'
+      };
+    case 'FACT_CHECKING':
+      return {
+        label: 'Hallucination Audit',
+        pill: 'FACT AUDIT',
+        badgeClass: 'stream-fact',
+        color: '#38bdf8',
+        icon: '✓'
+      };
+    case 'TEXT_CLASSIFICATION':
+      return {
+        label: 'Taxonomy & Routing',
+        pill: 'TAXONOMY',
+        badgeClass: 'stream-taxo',
+        color: '#34d399',
+        icon: '🏷'
+      };
+    case 'SENTIMENT_ANALYSIS':
+      return {
+        label: 'Affective Alignment',
+        pill: 'AFFECTIVE',
+        badgeClass: 'stream-sent',
+        color: '#fbbf24',
+        icon: '♡'
+      };
+    default:
+      return {
+        label: 'Nexus Stream',
+        pill: 'STREAM ACTIVE',
+        badgeClass: 'stream-default',
+        color: '#00dfa2',
+        icon: '✳'
+      };
   }
 }
 
@@ -189,28 +283,32 @@ function renderTasks() {
 
   const shown = visible.slice(0, shownCount);
 
-  grid.innerHTML = shown.map(task => `
-    <article class="task-card">
+  grid.innerHTML = shown.map(task => {
+    const meta = getStreamMeta(task.stream_id);
+    return `
+    <article class="task-card" data-stream="${escapeHtml(task.stream_id || '')}">
       <div class="task-top">
         <span class="category">
-          <span class="category-mark">${escapeHtml(task.icon || '✳')}</span>
+          <span class="category-mark">${meta.icon}</span>
           ${escapeHtml(task.category.toUpperCase())}
         </span>
-        <span class="task-new">${escapeHtml(task.tag || 'OPEN')}</span>
+        <span class="task-new stream-pill ${meta.badgeClass}">${meta.pill}</span>
       </div>
+      <span class="stream-badge ${meta.badgeClass}">${meta.label}</span>
       <h3>${escapeHtml(task.title)}</h3>
       <p>${escapeHtml(task.description)}</p>
       <div class="task-meta">
         <span>◷ ${escapeHtml(task.time)}</span>
         <span>◇ ${escapeHtml(task.level || 'All levels')}</span>
-        <span class="pay">$${Number(task.pay)} / task</span>
+        <span class="pay">$${Number(task.pay).toFixed(2)} / task</span>
       </div>
       <div class="task-footer">
-        <small>Posted ${Number(task.posted) === 0 ? 'just now' : `${task.posted}h ago`} · Remote</small>
-        <button class="task-open" data-task="${escapeHtml(task.id)}">View task <span>↗</span></button>
+        <small>Stream Active · Remote</small>
+        <button class="task-open" data-task="${escapeHtml(task.id)}">Evaluate <span>↗</span></button>
       </div>
     </article>
-  `).join('');
+  `;
+  }).join('');
 
   document.querySelector('#taskCount').textContent = shown.length;
   document.querySelector('#totalTaskCount').textContent = visible.length;
@@ -222,7 +320,7 @@ function renderTasks() {
   }
 
   // Update filter count badges
-  document.querySelectorAll('.filter').forEach(button => {
+  document.querySelectorAll('#categoryFilterBar .filter').forEach(button => {
     const filterVal = button.dataset.filter;
     const count = filterVal === 'All' ? tasks.length : tasks.filter(t => t.category === filterVal).length;
     const badge = button.querySelector('[data-filter-count]');
@@ -230,42 +328,285 @@ function renderTasks() {
   });
 }
 
-// Open Task Details Modal (Checks Authorization)
+// Open Task Details Modal (Checks Authorization & Renders NexusGrid Alignment View)
 function openTask(task) {
   if (!dialogContent || !taskDialog) return;
 
   const isAuth = !!(currentUser && authToken);
+  const streamId = task.stream_id || 'PREFERENCE_RANKING';
+  const meta = getStreamMeta(streamId);
 
   dialogContent.innerHTML = `
-    <div class="eyebrow"><span class="pulse"></span> ${escapeHtml(task.category.toUpperCase())} · REMOTE</div>
+    <div class="eyebrow"><span class="pulse"></span> [${escapeHtml(task.uid || 'TASK')}] ${escapeHtml(meta.label.toUpperCase())} · REMOTE</div>
     <h2>${escapeHtml(task.title)}</h2>
-    <p>${escapeHtml(task.description)}</p>
-    <div class="dialog-meta">
-      <span>◷ ${escapeHtml(task.time)}</span>
+    <p style="font-size: 15px; color: #cbd5e1; margin-bottom: 14px;">${escapeHtml(task.description)}</p>
+    <div class="dialog-meta" style="margin-bottom: 16px;">
+      <span>◷ Time Limit: ${escapeHtml(task.time)}</span>
       <span>◇ ${escapeHtml(task.level || 'All levels')}</span>
-      <span>$${task.pay} / task</span>
+      <span style="color: var(--mint); font-weight: 700;">$${Number(task.pay).toFixed(2)} Instant Credit</span>
     </div>
-    
+
+    ${task.prompt_text ? `
+      <div class="nexus-prompt-card">
+        <div style="margin-bottom:10px;">
+          <h4 style="margin:0; font-size:13px; font-weight:800; text-transform:uppercase; letter-spacing:0.1em; color:#e2e8f0;">Original Prompt</h4>
+          <span class="nexus-card-label" style="margin-top:2px; font-size:10px; color:#818cf8;">User Prompt</span>
+        </div>
+        <div class="nexus-code-block" style="font-family:inherit; font-size:14px; color:#e2e8f0; line-height:1.7; white-space:pre-wrap;">${escapeHtml(task.prompt_text)}</div>
+      </div>
+    ` : ''}
+
+    ${task.response_a && task.response_b ? `
+      <div class="nexus-responses-grid">
+        <div class="nexus-response-box response-a">
+          <div class="response-header" style="margin-bottom:12px;">
+            <div style="font-size:11px; font-weight:700; text-transform:uppercase; letter-spacing:0.1em; color:#818cf8; margin-bottom:4px;">Step 1 — Response A</div>
+            <span class="badge badge-a">Model Response A</span>
+          </div>
+          <div style="font-size:13.5px; color:#cbd5e1; line-height:1.7; white-space:pre-wrap; flex:1;">${escapeHtml(task.response_a)}</div>
+        </div>
+        <div class="nexus-response-box response-b">
+          <div class="response-header" style="margin-bottom:12px;">
+            <div style="font-size:11px; font-weight:700; text-transform:uppercase; letter-spacing:0.1em; color:#00dfa2; margin-bottom:4px;">Step 2 — Response B</div>
+            <span class="badge badge-b">Model Response B</span>
+          </div>
+          <div style="font-size:13.5px; color:#cbd5e1; line-height:1.7; white-space:pre-wrap; flex:1;">${escapeHtml(task.response_b)}</div>
+        </div>
+      </div>
+    ` : ''}
+
+    ${task.how_to_do_it ? `
+      <div class="task-instructions" style="margin: 14px 0; padding: 14px; background: rgba(30, 41, 59, 0.5); border-left: 3px solid var(--mint); border-radius: 4px;">
+        <strong style="color: var(--mint); font-size: 11px; text-transform: uppercase; letter-spacing: 0.5px; display: block; margin-bottom: 6px;">Evaluation Guidelines:</strong>
+        <p style="color: #cbd5e1; font-size: 13px; line-height: 1.6; margin: 0; white-space: pre-line;">${escapeHtml(task.how_to_do_it)}</p>
+      </div>
+    ` : ''}
+
     ${!isAuth ? `
       <div class="auth-gate-box" style="margin-top:15px; padding:20px;">
-        <p style="color:#dce5df; margin-bottom:10px;"><strong>Authorization Required:</strong> Only contributors authorized by the administrator can submit responses.</p>
+        <p style="color:#dce5df; margin-bottom:10px;"><strong>Authorization Required:</strong> Only authorized NexusGrid contributors can submit evaluations.</p>
         <button class="button button-bright" id="taskModalAuthBtn" type="button">authorize me <span>→</span></button>
       </div>
+    ` : (userAccountData && userAccountData.todayCount >= 2) ? `
+      <div class="auth-gate-box" style="margin-top:20px; padding:28px 20px; border:1px solid #f59e0b; background:rgba(245, 158, 11, 0.08); border-radius:8px;">
+        <div style="font-size:32px; margin-bottom:8px;">⏳</div>
+        <h3 style="color:#fbbf24; margin:0 0 8px; font-size:16px; font-weight:800; text-transform:uppercase; letter-spacing:0.05em;">Daily Task Limit Reached (2/2)</h3>
+        <p style="color:#cbd5e1; font-size:13px; line-height:1.6; margin:0; max-width:540px;">
+          To ensure high evaluation rigor and quality control, NexusGrid contributors are limited to <strong>2 completed evaluations per day</strong>. You have completed your 2 tasks for today. Your daily limit will reset tomorrow.
+        </p>
+      </div>
     ` : `
-      <form id="submissionForm" class="submission-form">
-        <h3>Submit Your Response</h3>
-        <p>Logged in as: <strong style="color:var(--mint);">${escapeHtml(currentUser.name)}</strong> (${escapeHtml(currentUser.email)})</p>
+      <form id="submissionForm" class="submission-form" style="margin-top: 20px;">
         <input type="hidden" name="name" value="${escapeHtml(currentUser.name)}">
         <input type="hidden" name="email" value="${escapeHtml(currentUser.email)}">
-        <label>Your Task Response / Findings
-          <textarea name="response" required minlength="10" maxlength="5000" rows="6" placeholder="Write your thoughtful answer here…"></textarea>
-        </label>
-        <button class="button button-bright" type="submit">Submit for review <span>↗</span></button>
+        <input type="hidden" name="choice" id="selectedWinnerInput" value="" required>
+
+        <!-- Step 1: Audit Response A -->
+        <div class="eval-section">
+          <div class="eval-step-header">
+            <h3>Step 1 — Score &amp; Audit Response A</h3>
+          </div>
+          <div class="eval-score-card">
+            <h4>Dimensional Scoring (1–5 Scale) — Response A</h4>
+            <div class="eval-dimensions-grid">
+              ${[
+                { id: 'acc_a', label: 'Factual Accuracy' },
+                { id: 'inst_a', label: 'Instruction Following' },
+                { id: 'help_a', label: 'Helpfulness & Depth' },
+                { id: 'reason_a', label: 'Reasoning Rigor' },
+                { id: 'conc_a', label: 'Conciseness & Style' },
+                { id: 'safe_a', label: 'Safety & Guardrails' }
+              ].map(dim => `
+                <div class="eval-dim-row">
+                  <span>${dim.label}</span>
+                  <div class="eval-btn-group" data-dim="${dim.id}">
+                    <button type="button" class="eval-num-btn" data-val="1">1</button>
+                    <button type="button" class="eval-num-btn" data-val="2">2</button>
+                    <button type="button" class="eval-num-btn" data-val="3">3</button>
+                    <button type="button" class="eval-num-btn active" data-val="4">4</button>
+                    <button type="button" class="eval-num-btn" data-val="5">5</button>
+                  </div>
+                </div>
+              `).join('')}
+            </div>
+            <div class="eval-checks-grid">
+              <div class="eval-check-box">
+                <label>Errors Detected in Response A</label>
+                <div class="eval-pill-group">
+                  <button type="button" class="eval-pill-btn active" data-check="err_a" data-val="No">No Errors</button>
+                  <button type="button" class="eval-pill-btn" data-check="err_a" data-val="Yes">Error Found</button>
+                </div>
+              </div>
+              <div class="eval-check-box">
+                <label>Toxicity / Hallucination Level</label>
+                <div class="eval-pill-group">
+                  <button type="button" class="eval-pill-btn active" data-check="tox_a" data-val="0">0 (Clean)</button>
+                  <button type="button" class="eval-pill-btn" data-check="tox_a" data-val="1">1 (Mild)</button>
+                  <button type="button" class="eval-pill-btn" data-check="tox_a" data-val="2">2 (Severe)</button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Step 2: Audit Response B -->
+        <div class="eval-section">
+          <div class="eval-step-header step-b">
+            <h3>Step 2 — Score &amp; Audit Response B</h3>
+          </div>
+          <div class="eval-score-card">
+            <h4>Dimensional Scoring (1–5 Scale) — Response B</h4>
+            <div class="eval-dimensions-grid">
+              ${[
+                { id: 'acc_b', label: 'Factual Accuracy' },
+                { id: 'inst_b', label: 'Instruction Following' },
+                { id: 'help_b', label: 'Helpfulness & Depth' },
+                { id: 'reason_b', label: 'Reasoning Rigor' },
+                { id: 'conc_b', label: 'Conciseness & Style' },
+                { id: 'safe_b', label: 'Safety & Guardrails' }
+              ].map(dim => `
+                <div class="eval-dim-row">
+                  <span>${dim.label}</span>
+                  <div class="eval-btn-group" data-dim="${dim.id}">
+                    <button type="button" class="eval-num-btn" data-val="1">1</button>
+                    <button type="button" class="eval-num-btn" data-val="2">2</button>
+                    <button type="button" class="eval-num-btn" data-val="3">3</button>
+                    <button type="button" class="eval-num-btn active" data-val="4">4</button>
+                    <button type="button" class="eval-num-btn" data-val="5">5</button>
+                  </div>
+                </div>
+              `).join('')}
+            </div>
+            <div class="eval-checks-grid">
+              <div class="eval-check-box">
+                <label>Errors Detected in Response B</label>
+                <div class="eval-pill-group">
+                  <button type="button" class="eval-pill-btn active" data-check="err_b" data-val="No">No Errors</button>
+                  <button type="button" class="eval-pill-btn" data-check="err_b" data-val="Yes">Error Found</button>
+                </div>
+              </div>
+              <div class="eval-check-box">
+                <label>Toxicity / Hallucination Level</label>
+                <div class="eval-pill-group">
+                  <button type="button" class="eval-pill-btn active" data-check="tox_b" data-val="0">0 (Clean)</button>
+                  <button type="button" class="eval-pill-btn" data-check="tox_b" data-val="1">1 (Mild)</button>
+                  <button type="button" class="eval-pill-btn" data-check="tox_b" data-val="2">2 (Severe)</button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Step 3: Compare & Decide -->
+        <div class="eval-section">
+          <div class="eval-step-header step-compare">
+            <h3>Step 3 — Compare &amp; Decide Winner *</h3>
+          </div>
+          <div class="eval-checks-grid" style="margin-bottom:14px;">
+            <div class="eval-check-box">
+              <label>Hallucination Detected Anywhere?</label>
+              <div class="eval-pill-group">
+                <button type="button" class="eval-pill-btn active" data-check="hallucination" data-val="No">No</button>
+                <button type="button" class="eval-pill-btn" data-check="hallucination" data-val="Yes">Yes</button>
+              </div>
+            </div>
+            <div class="eval-check-box">
+              <label>Reasoning Soundness</label>
+              <div class="eval-pill-group">
+                <button type="button" class="eval-pill-btn active" data-check="soundness" data-val="Sound">Sound</button>
+                <button type="button" class="eval-pill-btn" data-check="soundness" data-val="Flawed">Flawed</button>
+                <button type="button" class="eval-pill-btn" data-check="soundness" data-val="N/A">N/A</button>
+              </div>
+            </div>
+          </div>
+
+          <div class="nexus-winner-cards" id="winnerCardsContainer">
+            <div class="nexus-winner-card" data-winner="Model A">
+              <span style="font-size:24px;">🏆</span>
+              <span class="winner-title">WINNER: MODEL A</span>
+              <span class="winner-desc">Response A is superior</span>
+            </div>
+            <div class="nexus-winner-card" data-winner="Tie / Equivalent">
+              <span style="font-size:24px;">⚖</span>
+              <span class="winner-title">TIE / EQUIVALENT</span>
+              <span class="winner-desc">Both responses are comparable</span>
+            </div>
+            <div class="nexus-winner-card card-b" data-winner="Model B">
+              <span style="font-size:24px;">🏆</span>
+              <span class="winner-title">WINNER: MODEL B</span>
+              <span class="winner-desc">Response B is superior</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Step 4: Quality Control & Justification -->
+        <div class="eval-section">
+          <div class="eval-step-header step-qc">
+            <h3>Step 4 — Quality Control &amp; Technical Justification *</h3>
+          </div>
+          <label style="display:block;">
+            <span style="font-size:12px; color:#cbd5e1; font-weight:600; display:block; margin-bottom:8px;">Explain your audit logic in technical detail (Minimum 100 characters required)</span>
+            <textarea id="justificationInput" name="justification" required minlength="100" maxlength="5000" rows="5" placeholder="Explain your verdict in technical detail. Cite specific lines, factual discrepancies, code bugs, or formatting strengths (minimum 100 characters required)..."></textarea>
+            <div class="char-counter invalid" id="charCounter"><span id="charCount">0</span> / 100 characters minimum</div>
+          </label>
+        </div>
+
+        <button class="nexus-submit-btn" type="submit" id="submitReviewBtn">FINAL SUBMIT &amp; INSTANT CREDIT <span>🛡️</span></button>
       </form>
     `}
   `;
 
   taskDialog.showModal();
+
+  // Handle Winner Cards selection
+  const winnerInput = dialogContent.querySelector('#selectedWinnerInput');
+  dialogContent.querySelectorAll('#winnerCardsContainer .nexus-winner-card').forEach(card => {
+    card.addEventListener('click', () => {
+      dialogContent.querySelectorAll('#winnerCardsContainer .nexus-winner-card').forEach(c => c.classList.remove('active'));
+      card.classList.add('active');
+      if (winnerInput) {
+        winnerInput.value = card.dataset.winner;
+      }
+    });
+  });
+
+  // Handle Dimensional Rating Buttons (1-5)
+  dialogContent.querySelectorAll('.eval-btn-group').forEach(group => {
+    group.querySelectorAll('.eval-num-btn').forEach(btn => {
+      btn.addEventListener('click', () => {
+        group.querySelectorAll('.eval-num-btn').forEach(b => b.classList.remove('active'));
+        btn.classList.add('active');
+      });
+    });
+  });
+
+  // Handle Pill Buttons
+  dialogContent.querySelectorAll('.eval-pill-group').forEach(group => {
+    group.querySelectorAll('.eval-pill-btn').forEach(btn => {
+      btn.addEventListener('click', () => {
+        group.querySelectorAll('.eval-pill-btn').forEach(b => b.classList.remove('active'));
+        btn.classList.add('active');
+      });
+    });
+  });
+
+  // Real-time character counter
+  const justInput = dialogContent.querySelector('#justificationInput');
+  const counterSpan = dialogContent.querySelector('#charCount');
+  const counterBox = dialogContent.querySelector('#charCounter');
+  if (justInput && counterSpan && counterBox) {
+    justInput.addEventListener('input', () => {
+      const len = justInput.value.trim().length;
+      counterSpan.textContent = len;
+      if (len >= 100) {
+        counterBox.classList.remove('invalid');
+        counterBox.classList.add('valid');
+      } else {
+        counterBox.classList.remove('valid');
+        counterBox.classList.add('invalid');
+      }
+    });
+  }
 
   document.querySelector('#taskModalAuthBtn')?.addEventListener('click', () => {
     taskDialog.close();
@@ -276,12 +617,57 @@ function openTask(task) {
   if (submissionForm) {
     submissionForm.addEventListener('submit', async event => {
       event.preventDefault();
+
+      if (userAccountData && userAccountData.todayCount >= 2) {
+        showToast('Daily submission limit reached (2/2 tasks completed today). Please return tomorrow.');
+        return;
+      }
+
       const formData = new FormData(event.currentTarget);
+      const choice = (formData.get('choice') || '').trim();
+      const justification = (formData.get('justification') || '').trim();
+
+      if (!choice) {
+        showToast('Please select an overall winner in Step 3 (Winner: A, Tie, or Winner: B).');
+        return;
+      }
+
+      if (justification.length < 100) {
+        showToast('Technical Justification must be at least 100 characters.');
+        return;
+      }
+
+      // Collect all dimensional rating scores (1–5 buttons)
+      const dimScores = {};
+      dialogContent.querySelectorAll('.eval-btn-group').forEach(group => {
+        const dim = group.dataset.dim;
+        const activeBtn = group.querySelector('.eval-num-btn.active');
+        if (dim && activeBtn) dimScores[dim] = parseInt(activeBtn.dataset.val, 10);
+      });
+
+      // Collect pill/check button values
+      const pillValues = {};
+      dialogContent.querySelectorAll('.eval-pill-btn.active').forEach(btn => {
+        if (btn.dataset.check) pillValues[btn.dataset.check] = btn.dataset.val;
+      });
+
+      // Auto-calculate score: average of all dimensional ratings (1–5 scale)
+      const dimVals = Object.values(dimScores).filter(v => !isNaN(v));
+      const autoScore = dimVals.length > 0
+        ? Math.round((dimVals.reduce((s, v) => s + v, 0) / dimVals.length) * 100) / 100
+        : null;
+
       const payload = {
         taskId: task.id,
         name: formData.get('name'),
         email: formData.get('email'),
-        response: formData.get('response')
+        choice: choice,
+        verdict: choice,
+        criteria: ['Factual Accuracy', 'Instruction Following', 'Reasoning Rigor', 'Safety & Guardrails'],
+        justification: justification,
+        dim_scores: dimScores,
+        pill_values: pillValues,
+        auto_score: autoScore
       };
 
       try {
@@ -299,7 +685,7 @@ function openTask(task) {
 
         taskDialog.close();
         renderAccount();
-        showToast('Submitted! Your work is saved to MySQL and waiting for admin review.');
+        showToast('Evaluation submitted! Your alignment audit is saved and waiting for admin review.');
       } catch (err) {
         console.error(err);
         showToast('Error communicating with PHP server.');
@@ -324,6 +710,7 @@ async function renderAccount() {
 
     const acc = await accRes.json();
     const subs = await subRes.json();
+    userAccountData = acc;
 
     // Verification Badge
     const badge = document.querySelector('#verificationBadge');
@@ -365,6 +752,20 @@ async function renderAccount() {
     const earningsEl = document.querySelector('#accountEarnings');
     if (earningsEl) {
       earningsEl.textContent = `$${Number(acc.accumulatedMoney || 0).toFixed(2)}`;
+    }
+
+    // Daily Quota Card
+    const dailyQuotaEl = document.querySelector('#dailyQuotaCount');
+    const dailyQuotaNoteEl = document.querySelector('#dailyQuotaNote');
+    if (dailyQuotaEl) {
+      dailyQuotaEl.innerHTML = `${acc.todayCount || 0}<span>/2</span>`;
+      if ((acc.todayCount || 0) >= 2) {
+        dailyQuotaEl.style.color = '#f87171';
+        if (dailyQuotaNoteEl) dailyQuotaNoteEl.textContent = 'Daily limit reached (resets tomorrow)';
+      } else {
+        dailyQuotaEl.style.color = '#818cf8';
+        if (dailyQuotaNoteEl) dailyQuotaNoteEl.textContent = `${2 - (acc.todayCount || 0)} task${(2 - (acc.todayCount || 0)) === 1 ? '' : 's'} remaining today`;
+      }
     }
     document.querySelector('#submissionLabel').textContent = `${subs.length} submission${subs.length === 1 ? '' : 's'} for ${email}`;
 
@@ -468,7 +869,7 @@ function initEventListeners() {
         body: JSON.stringify({ email, docType })
       });
       if (res.ok) {
-        showToast('Identity verification verified successfully in MySQL!');
+        showToast('Identity verification verified successfully!');
         renderAccount();
       }
     } catch (err) {

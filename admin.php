@@ -1,10 +1,11 @@
 <?php
 /**
- * GiveGrid - Dedicated Administrator Dashboard & Portal
- * Powered by PHP 8.3 & Laragon MySQL
+ * NexusGrid — Dedicated Administrator Dashboard & Portal
+ * Production Enterprise Edition
  */
 require_once __DIR__ . '/db.php';
 initAndSeedDatabase();
+$appVersion = '2.4.0';
 ?>
 <!doctype html>
 <html lang="en">
@@ -12,23 +13,25 @@ initAndSeedDatabase();
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="theme-color" content="#090d12">
-  <title>Admin Workspace — GiveGrid</title>
+  <title>Admin Workspace — NexusGrid AI</title>
+  <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><rect width='100' height='100' rx='20' fill='%2300dfa2'/><path d='M30 50 L50 30 L70 50 L50 70 Z' fill='%23090d12'/></svg>">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Manrope:wght@400;500;600;700;800&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="styles.css">
-  <script src="admin.js" defer></script>
+  <link rel="stylesheet" href="styles.css?v=<?= $appVersion ?>">
+  <script src="admin.js?v=<?= $appVersion ?>" defer></script>
 </head>
 <body class="admin-page">
   <!-- Admin Navigation Topbar -->
   <header class="topbar">
-    <a class="brand" href="admin.php" aria-label="GiveGrid Admin">
+    <a class="brand" href="admin.php" aria-label="NexusGrid Admin">
       <span class="brand-mark"><i></i><i></i><i></i><i></i></span>
-      <span>give<span class="brand-light">grid</span> <small style="font-size:11px; font-weight:600; color:var(--mint); margin-left:6px; letter-spacing:1px; font-family:var(--mono);">[ADMIN]</small></span>
+      <span>nexus<span class="brand-light">grid</span> <small style="font-size:11px; font-weight:600; color:var(--mint); margin-left:6px; letter-spacing:1px; font-family:var(--mono);">[ADMIN]</small></span>
     </a>
     <nav class="main-nav" aria-label="Admin navigation">
       <a href="#users">Users &amp; Logins</a>
       <a href="#reviews">Submission Review</a>
+      <a href="#notifications">Notifications</a>
       <a href="#create">Create Task</a>
       <a href="#security">Account Security</a>
       <a href="index.php" style="color:var(--mint);">Contributor Portal ↗</a>
@@ -47,20 +50,17 @@ initAndSeedDatabase();
     <div id="adminAuthGate" class="auth-gate-box" style="margin-top:40px; padding:45px 30px;">
       <div class="eyebrow"><span class="pulse"></span> RESTRICTED ACCESS</div>
       <h2>Administrator Authorization Required</h2>
-      <p>This portal is reserved for GiveGrid platform administrators to manage users, review contributor submissions, and publish opportunities.</p>
+      <p>This portal is reserved for NexusGrid platform administrators to manage users, review contributor submissions, and publish opportunities.</p>
       
       <form id="adminLoginForm" style="width:min(420px, 100%); margin-top:20px; display:grid; gap:14px; text-align:left;">
         <label style="font-size:10px; color:#aebbb5; display:grid; gap:6px;">Administrator Email
-          <input type="email" id="adminEmailInput" required placeholder="admin@givegrid.com" style="width:100%; padding:10px 12px; background:#0b1115; border:1px solid #354047; color:#fff; border-radius:3px;">
+          <input type="email" id="adminEmailInput" required placeholder="admin@nexusgrid.com" style="width:100%; padding:10px 12px; background:#0b1115; border:1px solid #354047; color:#fff; border-radius:3px;">
         </label>
         <label style="font-size:10px; color:#aebbb5; display:grid; gap:6px;">Password
           <input type="password" id="adminPasswordInput" required placeholder="Administrator password" style="width:100%; padding:10px 12px; background:#0b1115; border:1px solid #354047; color:#fff; border-radius:3px;">
         </label>
         <button class="button button-bright" type="submit" id="adminSubmitAuthBtn" style="margin-top:6px;">authorize me <span>→</span></button>
       </form>
-      <div style="font-size:10px; color:#7d9188; margin-top:16px; border-top:1px solid #283731; padding-top:12px;">
-        <b>Default Admin Login (Laragon MySQL):</b> <code>admin@givegrid.com</code> / <code>admin123</code>
-      </div>
     </div>
 
     <!-- Protected Admin Dashboard (Visible only to authorized Admins) -->
@@ -71,7 +71,7 @@ initAndSeedDatabase();
           <div class="eyebrow"><span class="eyebrow-mark">01 /</span> CONTROL CENTER</div>
           <h2>Admin Workspace</h2>
         </div>
-        <p>Manage contributor logins, grade pending responses, publish tasks, and monitor platform security in Laragon MySQL.</p>
+        <p>Manage contributor logins, grade pending responses, publish tasks, and monitor platform security.</p>
       </div>
 
       <!-- KPI Summary Cards -->
@@ -243,22 +243,50 @@ initAndSeedDatabase();
         </form>
         <div id="securityAccounts" class="security-accounts"></div>
       </div>
+
+      <!-- Section: Email Notifications -->
+      <div class="security-panel" id="notifications" style="margin-top:25px;">
+        <div class="admin-title">
+          <span class="admin-icon">✉</span>
+          <div>
+            <h3>Email Notifications</h3>
+            <small>Send a custom message to any contributor. Grading emails are sent automatically.</small>
+          </div>
+        </div>
+        <form id="notifyForm" class="security-flag-form" style="max-width:600px;">
+          <label>Recipient Email
+            <input name="to_email" type="email" required maxlength="160" id="notifyToEmail" placeholder="contributor@example.com">
+          </label>
+          <label>Subject
+            <input name="subject" required maxlength="200" id="notifySubject" placeholder="e.g. Important update about your account">
+          </label>
+          <label>Message
+            <textarea name="message" required rows="5" maxlength="2000" id="notifyMessage" placeholder="Type your message to the contributor here..."></textarea>
+          </label>
+          <div style="display:flex; gap:10px; flex-wrap:wrap; align-items:center;">
+            <button class="button button-bright" type="submit" id="notifySubmitBtn">Send Email <span>✉</span></button>
+            <button class="button button-outline" type="button" id="notifyAllBtn">Email All Contributors</button>
+          </div>
+          <small id="notifyStatus" style="display:none; margin-top:8px; color:var(--mint); font-family:var(--mono);"></small>
+        </form>
+        <div id="emailLog" style="margin-top:20px;"></div>
+      </div>
     </div>
   </main>
 
   <footer class="footer">
     <a class="brand" href="admin.php">
       <span class="brand-mark"><i></i><i></i><i></i><i></i></span>
-      <span>give<span class="brand-light">grid</span></span>
+      <span>nexus<span class="brand-light">grid</span></span>
     </a>
-    <p>Administrative Control Panel · Powered by PHP &amp; Laragon MySQL.</p>
+    <p>Administrative Control Panel · Enterprise AI Alignment Protocol.</p>
     <div class="footer-links">
       <a href="index.php">View Public Contributor Grid ↗</a>
       <a href="#users">Users</a>
       <a href="#reviews">Reviews</a>
       <a href="#create">Create Task</a>
     </div>
-    <small>© 2026 GiveGrid Admin Workspace.</small>
+    <small>© 2026 Nexus Grid AI Security Protocol. All Rights Reserved.</small>
   </footer>
 
   <!-- Floating Toast Notification -->

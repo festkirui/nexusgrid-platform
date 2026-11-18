@@ -1,10 +1,11 @@
 <?php
 /**
- * GiveGrid - Work that moves AI forward
- * Powered by PHP 8.3 & Laragon MySQL
+ * NexusGrid — Human Intelligence & AI Alignment Platform
+ * Production Enterprise Edition
  */
 require_once __DIR__ . '/db.php';
 initAndSeedDatabase();
+$appVersion = '2.4.0';
 ?>
 <!doctype html>
 <html lang="en">
@@ -12,20 +13,21 @@ initAndSeedDatabase();
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="theme-color" content="#090d12">
-  <meta name="description" content="GiveGrid connects skilled people with meaningful, paid AI tasks. Powered by PHP & MySQL.">
-  <title>GiveGrid — Work that moves AI forward (PHP & Laragon)</title>
+  <meta name="description" content="NexusGrid connects qualified contributors with high-impact AI alignment, RLHF preference ranking, and factual evaluation tasks.">
+  <title>NexusGrid — AI Alignment &amp; Model Evaluation Platform</title>
+  <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><rect width='100' height='100' rx='20' fill='%2300dfa2'/><path d='M30 50 L50 30 L70 50 L50 70 Z' fill='%23090d12'/></svg>">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Manrope:wght@400;500;600;700;800&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="styles.css">
-  <script src="app.js" defer></script>
+  <link rel="stylesheet" href="styles.css?v=<?= $appVersion ?>">
+  <script src="app.js?v=<?= $appVersion ?>" defer></script>
 </head>
 <body>
   <!-- Header / Navigation -->
   <header class="topbar">
-    <a class="brand" href="#top" aria-label="GiveGrid home">
+    <a class="brand" href="#top" aria-label="NexusGrid home">
       <span class="brand-mark"><i></i><i></i><i></i><i></i></span>
-      <span>give<span class="brand-light">grid</span></span>
+      <span>nexus<span class="brand-light">grid</span></span>
     </a>
     <nav class="main-nav" aria-label="Main navigation">
       <a href="#opportunities">Opportunities</a>
@@ -51,11 +53,11 @@ initAndSeedDatabase();
     <!-- Hero Section -->
     <section class="hero">
       <div class="hero-copy">
-        <div class="eyebrow"><span class="pulse"></span> THE HUMAN SIDE OF AI · LARAGON PHP/MYSQL</div>
-        <h1>Good work.<br><span>Better intelligence.</span></h1>
-        <p class="hero-lead">Put your skills to work on the AI tasks that matter. Find flexible projects, contribute your perspective, and get paid for thoughtful work.</p>
+        <div class="eyebrow"><span class="pulse"></span> THE HUMAN SIDE OF ARTIFICIAL INTELLIGENCE</div>
+        <h1>Train AI.<br><span>Better intelligence.</span></h1>
+        <p class="hero-lead">Put your skills to work on high-impact AI alignment streams. Evaluate model responses, audit factual consistency, and get paid for rigorous feedback.</p>
         <div class="hero-actions">
-          <a class="button button-bright" href="#opportunities">Explore tasks <span>↗</span></a>
+          <button class="button button-bright" id="heroExploreBtn">Explore streams <span>↗</span></button>
           <a class="button button-quiet" href="#how-it-works"><span class="play">▶</span> See how it works</a>
         </div>
         <div class="hero-note">
@@ -74,10 +76,10 @@ initAndSeedDatabase();
           <span>HUMAN<br>INSIGHT</span>
           <small id="heroClock">ONLINE · 08:42:16</small>
         </div>
-        <div class="node node-a"><span class="node-icon">✦</span><b>REVIEW</b><small>Language</small></div>
-        <div class="node node-b"><span class="node-icon">⌘</span><b>BUILD</b><small>Code</small></div>
-        <div class="node node-c"><span class="node-icon">◉</span><b>TEACH</b><small>Reasoning</small></div>
-        <div class="node node-d"><span class="node-icon">↗</span><b>IMPROVE</b><small>Research</small></div>
+        <div class="node node-a"><span class="node-icon">✦</span><b>RLHF</b><small>Preference</small></div>
+        <div class="node node-b"><span class="node-icon">⌘</span><b>AUDIT</b><small>Hallucination</small></div>
+        <div class="node node-c"><span class="node-icon">◉</span><b>ROUTING</b><small>Taxonomy</small></div>
+        <div class="node node-d"><span class="node-icon">↗</span><b>AFFECT</b><small>Sentiment</small></div>
         <div class="art-caption"><span class="live-dot"></span> A little human goes a long way.</div>
       </div>
       <div class="hero-bottom">
@@ -97,28 +99,27 @@ initAndSeedDatabase();
       <p>Small details.<br><b>Meaningful progress.</b></p>
     </section>
 
-    <!-- 01 / Opportunities Section -->
-    <section class="opportunities section-wrap" id="opportunities">
+    <!-- 01 / Opportunities Section — hidden until logged in -->
+    <section class="opportunities section-wrap" id="opportunities" style="display:none;">
       <div class="section-heading">
         <div>
-          <div class="eyebrow"><span class="eyebrow-mark">01 /</span> OPEN OPPORTUNITIES</div>
-          <h2>Find your kind<br>of challenge.</h2>
+          <div class="eyebrow"><span class="eyebrow-mark">01 /</span> ACTIVE WORK STREAMS</div>
+          <h2>Select your<br>alignment stream.</h2>
         </div>
-        <p>Pick up a task that fits your strengths. New projects are added as teams need fresh human insight.</p>
+        <p>Pick up an alignment task across our active streams. RLHF comparisons, hallucination audits, taxonomy classification, and affective alignment.</p>
       </div>
-      <div class="filters" role="group" aria-label="Filter opportunities">
-        <button class="filter active" data-filter="All">All tasks <span data-filter-count>100</span></button>
-        <button class="filter" data-filter="Writing">Writing <span data-filter-count></span></button>
-        <button class="filter" data-filter="Coding">Coding <span data-filter-count></span></button>
-        <button class="filter" data-filter="Research">Research <span data-filter-count></span></button>
-        <button class="filter" data-filter="Evaluation">Evaluation <span data-filter-count></span></button>
-        <div class="filter-spacer"></div>
-        <span class="sort-label">SORT BY</span>
-        <select id="sortSelect" aria-label="Sort tasks">
-          <option value="recommended">Recommended</option>
-          <option value="pay-high">Pay: high to low</option>
-          <option value="newest">Newest</option>
-        </select>
+      <div class="filters-container">
+        <div class="filters" id="categoryFilterBar" role="group" aria-label="Filter opportunities">
+          <button class="filter active" data-filter="All">All tasks <span data-filter-count>200</span></button>
+        </div>
+        <div class="sort-wrap">
+          <span class="sort-label">SORT BY</span>
+          <select id="sortSelect" aria-label="Sort tasks">
+            <option value="recommended">Recommended</option>
+            <option value="pay-high">Pay: high to low</option>
+            <option value="newest">Newest</option>
+          </select>
+        </div>
       </div>
       <div class="task-grid" id="taskGrid" aria-live="polite"></div>
       <div class="load-more-wrap">
@@ -127,6 +128,22 @@ initAndSeedDatabase();
       <div class="browse-more">
         <span>Showing <b id="taskCount">12</b> of <b id="totalTaskCount">100</b> opportunities</span>
         <button class="button button-outline" id="clearFilters">Reset filters <span>↻</span></button>
+      </div>
+    </section>
+
+    <!-- Tasks Login Gate — shown when NOT logged in -->
+    <section class="section-wrap" id="tasksLoginGate" style="padding: 80px 0;">
+      <div class="tasks-gate-wrap">
+        <div class="tasks-gate-icon">🔒</div>
+        <div class="eyebrow" style="justify-content:center; margin-bottom:14px;"><span class="pulse"></span> AUTHORIZATION REQUIRED</div>
+        <h2 style="text-align:center; margin-bottom:16px;">Tasks are for<br><span>authorized contributors</span> only.</h2>
+        <p style="text-align:center; color:#94a3b8; max-width:480px; margin:0 auto 28px; font-size:15px; line-height:1.7;">
+          Log in with your contributor credentials to view and complete alignment tasks. Contact your administrator if you do not yet have an account.
+        </p>
+        <div style="display:flex; justify-content:center; gap:14px; flex-wrap:wrap;">
+          <button class="button button-bright" id="gateTasksLoginBtn">authorize me <span>→</span></button>
+          <a class="button button-quiet" href="#how-it-works"><span class="play">▶</span> See how it works</a>
+        </div>
       </div>
     </section>
 
@@ -170,10 +187,10 @@ initAndSeedDatabase();
             <span class="verification-status" id="verificationBadge"><i></i> NOT VERIFIED</span>
             <button class="button button-outline" id="startVerification" type="button">Start verification <span>↗</span></button>
           </div>
-          <p class="verification-note">Secure ID verification simulation mode. All data is saved to your Laragon MySQL database.</p>
+          <p class="verification-note">Secure ID verification simulation mode. All credential records are stored with encryption.</p>
         </article>
 
-        <div class="rating-grid" style="grid-template-columns: 1.2fr 1fr 1fr 1fr;">
+        <div class="rating-grid" style="grid-template-columns: repeat(5, 1fr);">
           <article class="rating-card rating-main">
             <small>OVERALL RATING</small>
             <strong id="accountRating">—<span>/5</span></strong>
@@ -193,6 +210,11 @@ initAndSeedDatabase();
             <small>PENDING REVIEW</small>
             <strong id="pendingCount">0</strong>
             <p>Waiting for admin review</p>
+          </article>
+          <article class="rating-card" style="border-color:#6366f1;">
+            <small>DAILY QUOTA</small>
+            <strong id="dailyQuotaCount" style="color:#818cf8;">0<span>/2</span></strong>
+            <p id="dailyQuotaNote">Max 2 tasks per day</p>
           </article>
         </div>
 
@@ -214,40 +236,40 @@ initAndSeedDatabase();
       <div class="section-wrap how-inner">
         <div class="how-intro">
           <div class="eyebrow"><span class="eyebrow-mark">02 /</span> SIMPLE BY DESIGN</div>
-          <h2>Your expertise<br>has a place here.</h2>
-          <p>From your first profile to your first payout, we keep the process clear and contributor-friendly.</p>
-          <a class="button button-bright" href="#opportunities">Find your first task <span>↗</span></a>
+          <h2>Rigorous AI alignment<br>made streamlined.</h2>
+          <p>From your qualification assessment to your first payout, we keep the process clear, fair, and professional.</p>
+          <a class="button button-bright" href="#opportunities">Find your first stream <span>↗</span></a>
         </div>
         <div class="steps">
           <article class="step">
             <span class="step-no">01</span>
             <div>
-              <h3>Tell us what you know</h3>
-              <p>Build a profile around your skills, experience, and the topics you care about.</p>
+              <h3>Select Active Stream</h3>
+              <p>Choose from RLHF Preference, Fact Check Audit, Taxonomy Routing, or Sentiment streams.</p>
             </div>
             <span class="step-icon">◎</span>
           </article>
           <article class="step">
             <span class="step-no">02</span>
             <div>
-              <h3>Choose a good fit</h3>
-              <p>Browse clear project briefs with the time, requirements, and pay shown upfront.</p>
+              <h3>Pass Assessment</h3>
+              <p>Complete the compliance test to unlock live production streams with automatic scoring.</p>
             </div>
             <span class="step-icon">⌕</span>
           </article>
           <article class="step">
             <span class="step-no">03</span>
             <div>
-              <h3>Do thoughtful work</h3>
-              <p>Complete tasks on your schedule and get useful guidance when you need it.</p>
+              <h3>Evaluate Models</h3>
+              <p>Compare outputs, audit citations, and supply 100+ character technical justifications.</p>
             </div>
             <span class="step-icon">✳</span>
           </article>
           <article class="step">
             <span class="step-no">04</span>
             <div>
-              <h3>Get paid, keep growing</h3>
-              <p>Track your work and earnings, then take on projects that build your expertise.</p>
+              <h3>Instant Credit &amp; Growth</h3>
+              <p>Track your approved evaluations, accumulated earnings, and quality ratings in real-time.</p>
             </div>
             <span class="step-icon">↗</span>
           </article>
@@ -258,12 +280,12 @@ initAndSeedDatabase();
     <!-- Community Quote -->
     <section class="quote-section section-wrap" id="community">
       <div class="quote-mark">“</div>
-      <blockquote>“The best part is knowing that careful, human work can make a real difference to the tools people use every day.”</blockquote>
+      <blockquote>“The best part is knowing that careful human alignment directly shapes model safety and reasoning in production.”</blockquote>
       <div class="quote-by">
         <div class="quote-avatar">N</div>
         <div>
           <b>Nia K.</b>
-          <small>Writer &amp; contributor since 2024</small>
+          <small>AI Alignment Specialist &amp; contributor since 2024</small>
         </div>
         <span class="quote-stars">★★★★★</span>
       </div>
@@ -286,17 +308,17 @@ initAndSeedDatabase();
   <footer class="footer">
     <a class="brand" href="#top">
       <span class="brand-mark"><i></i><i></i><i></i><i></i></span>
-      <span>give<span class="brand-light">grid</span></span>
+      <span>nexus<span class="brand-light">grid</span></span>
     </a>
-    <p>Human insight for a more thoughtful future. Running on PHP &amp; Laragon MySQL.</p>
+    <p>Guiding intelligence with wisdom. Enterprise AI Alignment Protocol.</p>
     <div class="footer-links">
       <a href="#opportunities">Opportunities</a>
       <a href="#how-it-works">How it works</a>
       <a href="#my-work">My work</a>
       <a href="admin.php">Admin Portal ↗</a>
-      <a href="mailto:hello@givegrid.example">Contact</a>
+      <a href="mailto:hello@nexusgrid.site">Contact</a>
     </div>
-    <small>© 2026 GiveGrid. Built for people who care about good work.</small>
+    <small>© 2026 Nexus Grid AI Security Protocol. All Rights Reserved.</small>
   </footer>
 
   <!-- Task Detail / Submission Modal Dialog -->
@@ -310,7 +332,7 @@ initAndSeedDatabase();
     <button class="dialog-close" aria-label="Close dialog">×</button>
     <div class="eyebrow"><span class="pulse"></span> IDENTITY CHECK</div>
     <h2>Verify your identity</h2>
-    <p>GiveGrid connects with secure identity-verification services to confirm contributor credentials, protect platform trust, and enable payouts.</p>
+    <p>NexusGrid connects with secure identity-verification services to confirm contributor credentials, protect platform trust, and enable payouts.</p>
     <div class="verification-next">
       <b>Verification Flow Steps:</b>
       <span>Upload government ID or passport</span>
@@ -344,12 +366,6 @@ initAndSeedDatabase();
       </label>
       <button class="button button-bright" type="submit" id="authSubmitBtn">authorize me <span>→</span></button>
     </form>
-    <div style="font-size:10px; color:#7d9188; margin-top:16px; border-top:1px solid #283731; padding-top:12px; line-height:1.6;">
-      <b>Demo Accounts Seeded in Laragon MySQL:</b><br>
-      • Contributor: <code style="color:var(--mint)">alex@example.com</code> / <code style="color:var(--mint)">alex123</code><br>
-      • Contributor: <code style="color:var(--mint)">festus@example.com</code> / <code style="color:var(--mint)">festus123</code><br>
-      • Administrator: <code style="color:var(--mint)">admin@givegrid.com</code> / <code style="color:var(--mint)">admin123</code>
-    </div>
   </dialog>
 
   <!-- Floating Toast Notification -->

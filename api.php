@@ -1,7 +1,7 @@
 <?php
 /**
- * GiveGrid - REST API Controller
- * Serves JSON responses for tasks, submissions, contributor account stats, authentication & user management
+ * NexusGrid — REST API Controller
+ * Serves JSON responses for tasks, work streams, submissions, contributor account stats, authentication & user management
  */
 
 header('Content-Type: application/json; charset=utf-8');
@@ -194,7 +194,7 @@ try {
                     COUNT(CASE WHEN s.status = 'pending' THEN 1 END) AS tasks_pending,
                     COUNT(s.id) AS tasks_total,
                     COALESCE(SUM(CASE WHEN s.status = 'approved' THEN s.pay ELSE 0 END), 0.00) AS accumulated_money,
-                    ROUND(AVG(CASE WHEN s.status = 'approved' AND s.score IS NOT NULL THEN s.score END), 1) AS avg_rating
+                    ROUND(CAST(AVG(CASE WHEN s.status = 'approved' AND s.score IS NOT NULL THEN s.score END) AS numeric), 1) AS avg_rating
                 FROM users u
                 LEFT JOIN submissions s ON LOWER(u.email) = LOWER(s.contributor_email)
                 GROUP BY u.id, u.name, u.email, u.role, u.status, u.created_at, u.last_login
@@ -286,7 +286,7 @@ try {
                 $params[] = "%$search%";
             }
 
-            $sql = "SELECT id, task_uid AS uid, category, icon, title, description, pay, time_estimate AS time, difficulty_level AS level, tag, posted_hours_ago AS posted FROM tasks";
+            $sql = "SELECT id, task_uid AS uid, category, icon, title, description, how_to_do_it, what_to_submit, time_estimate AS time, difficulty_level AS level, no_ai_rule, pay, tag, posted_hours_ago AS posted, stream_id, prompt_text, response_a, response_b FROM tasks";
             if (!empty($where)) {
                 $sql .= " WHERE " . implode(" AND ", $where);
             }
@@ -339,15 +339,40 @@ try {
                 exit;
             }
 
-            $iconMap = ['Writing' => '✎', 'Coding' => '⌘', 'Research' => '⌕', 'Evaluation' => '◉'];
+            $iconMap = [
+                'Online Research'               => '⌕',
+                'Data Entry'                     => '☷',
+                'Content Writing'                => '✎',
+                'Social Media'                   => '◈',
+                'Transcription'                  => '♫',
+                'Proofreading & Editing'         => '✓',
+                'Website Testing'                => '⚙',
+                'Lead Generation'                => '◎',
+                'E-commerce Listings'            => '▤',
+                'Translation (English-Swahili)'  => '⇄',
+                'Categorisation & Tagging'       => '🏷',
+                'Customer Support Writing'       => '✉',
+                'Email & Business Writing'       => '✍',
+                'Competitor & Market Analysis'   => '◩',
+                'Image & Media Tasks'            => '⬡',
+                'Video & Audio Research'         => '▷',
+                'App & Product Reviews'          => '★',
+                'Job & Career Research'          => '⌖',
+                'Education & Tutorial Writing'   => '📖',
+                'Digital Marketing Tasks'        => '↗',
+                'Writing' => '✎', 'Coding' => '⌘', 'Research' => '⌕', 'Evaluation' => '◉'
+            ];
             $icon = $iconMap[$category] ?? '✳';
-            $taskUid = 'custom-' . time();
+            $taskUid = 'T' . time();
+            $howToDoIt = trim($input['how_to_do_it'] ?? '');
+            $whatToSubmit = trim($input['what_to_submit'] ?? '');
+            $noAiRule = trim($input['no_ai_rule'] ?? '');
 
             $stmt = $pdo->prepare("
-                INSERT INTO tasks (task_uid, category, icon, title, description, pay, time_estimate, difficulty_level, tag, posted_hours_ago)
-                VALUES (?, ?, ?, ?, ?, ?, ?, 'All levels', 'NEW', 0)
+                INSERT INTO tasks (task_uid, category, icon, title, description, how_to_do_it, what_to_submit, no_ai_rule, pay, time_estimate, difficulty_level, tag, posted_hours_ago)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'All levels', 'NEW', 0)
             ");
-            $stmt->execute([$taskUid, $category, $icon, $title, $description, $pay, $time]);
+            $stmt->execute([$taskUid, $category, $icon, $title, $description, $howToDoIt, $whatToSubmit, $noAiRule, $pay, $time]);
             $newId = $pdo->lastInsertId();
 
             echo json_encode([
@@ -386,7 +411,7 @@ try {
                 $params[] = $status;
             }
 
-            $sql = "SELECT id, sub_uid AS uid, task_id AS taskId, task_title AS taskTitle, category, contributor_name AS name, contributor_email AS email, response_text AS response, status, score, feedback, submitted_at AS submittedAt, reviewed_at AS reviewedAt FROM submissions";
+            $sql = "SELECT id, sub_uid AS uid, task_id AS taskId, task_title AS taskTitle, category, contributor_name AS name, contributor_email AS email, response_text AS response, status, score, auto_score AS autoScore, dim_scores AS dimScores, feedback, submitted_at AS submittedAt, reviewed_at AS reviewedAt FROM submissions";
             if (!empty($where)) {
                 $sql .= " WHERE " . implode(" AND ", $where);
             }
@@ -410,10 +435,24 @@ try {
             $name = trim($input['name'] ?? '');
             $email = strtolower(trim($input['email'] ?? ''));
             $response = trim($input['response'] ?? '');
+            
+            // Format structured NexusGrid RLHF / Audit evaluation answers
+            if (!empty($input['justification'])) {
+                $evalParts = [];
+                if (!empty($input['choice'])) $evalParts[] = "WINNER SELECTION: " . $input['choice'];
+                if (!empty($input['verdict'])) $evalParts[] = "TRUTH VERDICT: " . $input['verdict'];
+                if (!empty($input['primaryCategory'])) $evalParts[] = "TAXONOMY CATEGORY: " . $input['primaryCategory'];
+                if (!empty($input['sentiment'])) $evalParts[] = "SENTIMENT GRADE: " . $input['sentiment'];
+                if (!empty($input['criteria']) && is_array($input['criteria'])) {
+                    $evalParts[] = "COMPLIANCE CRITERIA: " . implode(', ', $input['criteria']);
+                }
+                $evalParts[] = "PROFESSIONAL JUSTIFICATION:\n" . trim($input['justification']);
+                $response = implode("\n\n", $evalParts);
+            }
 
             if (empty($taskId) || empty($name) || empty($email) || empty($response)) {
                 http_response_code(400);
-                echo json_encode(['error' => 'All submission fields are required.']);
+                echo json_encode(['error' => 'All evaluation criteria and justification are required.']);
                 exit;
             }
 
@@ -449,9 +488,29 @@ try {
                 exit;
             }
 
+            // Daily Submission Limit Check: Maximum 2 tasks per day per contributor
+            $dailyStmt = $pdo->prepare("
+                SELECT COUNT(*) FROM submissions 
+                WHERE LOWER(contributor_email) = ? 
+                AND DATE(submitted_at) = CURRENT_DATE
+            ");
+            $dailyStmt->execute([$email]);
+            $dailyCount = (int) $dailyStmt->fetchColumn();
+
+            if ($dailyCount >= 2) {
+                http_response_code(429);
+                echo json_encode([
+                    'error' => 'Daily limit reached! You can complete a maximum of 2 tasks per day. Please return tomorrow.',
+                    'dailyLimitReached' => true,
+                    'dailyCount' => $dailyCount,
+                    'maxDaily' => 2
+                ]);
+                exit;
+            }
+
             // Find task info
-            $taskStmt = $pdo->prepare("SELECT title, category, pay FROM tasks WHERE task_uid = ? OR id = ? LIMIT 1");
-            $taskStmt->execute([$taskId, $taskId]);
+            $taskStmt = $pdo->prepare("SELECT title, category, pay FROM tasks WHERE task_uid = ? OR CAST(id AS VARCHAR) = ? LIMIT 1");
+            $taskStmt->execute([$taskId, (string)$taskId]);
             $task = $taskStmt->fetch();
 
             $taskTitle = $task ? $task['title'] : 'Task';
@@ -459,11 +518,19 @@ try {
             $pay = $task ? (float)$task['pay'] : 25.00;
             $subUid = 'sub-' . time() . '-' . rand(100, 999);
 
+            // Extract auto_score and dim_scores from payload
+            $autoScore = isset($input['auto_score']) && is_numeric($input['auto_score'])
+                ? round((float)$input['auto_score'], 2)
+                : null;
+            $dimScores = !empty($input['dim_scores']) && is_array($input['dim_scores'])
+                ? json_encode($input['dim_scores'])
+                : null;
+
             $stmt = $pdo->prepare("
-                INSERT INTO submissions (sub_uid, task_id, task_title, category, contributor_name, contributor_email, response_text, pay, status, submitted_at)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'pending', NOW())
+                INSERT INTO submissions (sub_uid, task_id, task_title, category, contributor_name, contributor_email, response_text, pay, status, auto_score, dim_scores, submitted_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'pending', ?, ?, NOW())
             ");
-            $stmt->execute([$subUid, $taskId, $taskTitle, $category, $name, $email, $response, $pay]);
+            $stmt->execute([$subUid, $taskId, $taskTitle, $category, $name, $email, $response, $pay, $autoScore, $dimScores]);
 
             echo json_encode([
                 'success' => true,
@@ -483,8 +550,12 @@ try {
 
             $input = getRequestData();
             $submissionId = $input['id'] ?? $input['submissionId'] ?? null;
-            $score = (float)($input['score'] ?? 5.0);
-            $feedback = trim($input['feedback'] ?? '');
+            $adminScore = isset($input['score']) && is_numeric($input['score']) ? (float)$input['score'] : null;
+            $feedbackLabel = trim($input['feedback_label'] ?? '');
+            $feedback = trim($input['feedback'] ?? $feedbackLabel);
+            $sendEmail = !empty($input['send_email']);
+            $contributorEmail = strtolower(trim($input['contributor_email'] ?? ''));
+            $contributorName = trim($input['contributor_name'] ?? 'Contributor');
 
             if (!$submissionId) {
                 http_response_code(400);
@@ -492,14 +563,152 @@ try {
                 exit;
             }
 
+            // Fetch submission to get auto_score (from contributor dim ratings) and contributor info
+            $subInfo = $pdo->prepare("SELECT contributor_email, contributor_name, task_title, auto_score, dim_scores FROM submissions WHERE CAST(id AS VARCHAR) = ? OR sub_uid = ? LIMIT 1");
+            $subInfo->execute([(string)$submissionId, $submissionId]);
+            $subRow = $subInfo->fetch();
+
+            if (empty($contributorEmail) && $subRow) {
+                $contributorEmail = $subRow['contributor_email'];
+                $contributorName  = $subRow['contributor_name'];
+            }
+
+            // --- AUTO-CALCULATE FINAL SCORE ---
+            $storedAutoScore = ($subRow && $subRow['auto_score']) ? (float)$subRow['auto_score'] : 0;
+
+            if ($adminScore !== null) {
+                $adminScore = max(1.0, min(5.0, $adminScore));
+                if ($storedAutoScore > 0) {
+                    // Weighted blend: 60% admin + 40% contributor self-evaluation
+                    $finalScore = round(($adminScore * 0.60) + ($storedAutoScore * 0.40), 2);
+                } else {
+                    $finalScore = $adminScore;
+                }
+            } elseif ($storedAutoScore > 0) {
+                $finalScore = round($storedAutoScore, 2);
+            } else {
+                $finalScore = 3.00;
+            }
+            $finalScore = max(1.0, min(5.0, $finalScore));
+
+            // Auto-derive feedback label from final score if not provided
+            if (empty($feedbackLabel)) {
+                $feedbackLabel = match(true) {
+                    $finalScore >= 4.8 => 'Very Excellent',
+                    $finalScore >= 4.0 => 'Excellent',
+                    $finalScore >= 3.5 => 'Good',
+                    $finalScore >= 2.5 => 'Fair',
+                    $finalScore >= 1.5 => 'Poor',
+                    default            => 'Very Poor',
+                };
+            }
+            if (empty($feedback)) $feedback = $feedbackLabel;
+
             $stmt = $pdo->prepare("
                 UPDATE submissions 
                 SET status = 'approved', score = ?, feedback = ?, reviewed_at = NOW()
-                WHERE id = ? OR sub_uid = ?
+                WHERE CAST(id AS VARCHAR) = ? OR sub_uid = ?
             ");
-            $stmt->execute([$score, $feedback, $submissionId, $submissionId]);
+            $stmt->execute([$finalScore, $feedback, (string)$submissionId, $submissionId]);
 
-            echo json_encode(['success' => true]);
+            // Send grade notification email
+            $emailSent = false;
+            if ($sendEmail && !empty($contributorEmail)) {
+                $scoreLabel = match(true) {
+                    $finalScore >= 4.8 => 'Very Excellent ⭐',
+                    $finalScore >= 4.0 => 'Excellent 🟩',
+                    $finalScore >= 3.5 => 'Good 🟦',
+                    $finalScore >= 2.5 => 'Fair 🟨',
+                    $finalScore >= 1.5 => 'Poor 🟥',
+                    default            => 'Very Poor ⬛',
+                };
+                $scoreBreakdown = "";
+                if ($adminScore !== null && $storedAutoScore > 0) {
+                    $scoreBreakdown = "BREAKDOWN: Admin grade {$adminScore}/5 (60%) + Auto-score {$storedAutoScore}/5 (40%)\r\n";
+                }
+                $subject = "NexusGrid — Your submission has been graded: {$scoreLabel}";
+                $body  = "Hello {$contributorName},\r\n\r\n";
+                $body .= "Your submission on NexusGrid has been reviewed and graded by an administrator.\r\n\r\n";
+                $body .= "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\r\n";
+                $body .= "FINAL SCORE: {$finalScore} / 5\r\n";
+                $body .= "RATING:      {$scoreLabel}\r\n";
+                $body .= $scoreBreakdown;
+                if (!empty($feedback)) {
+                    $body .= "FEEDBACK:    {$feedback}\r\n";
+                }
+                $body .= "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\r\n\r\n";
+                $body .= "Log in to your NexusGrid account to view your updated rating and accumulated earnings.\r\n\r\n";
+                $body .= "Thank you for your contribution!\r\n\r\n";
+                $body .= "— The NexusGrid Team\r\n";
+                $mailHost = preg_replace('/:\d+$/', '', $_SERVER['HTTP_HOST'] ?? 'nexusgrid.site');
+                $fromHeader = defined('MAIL_FROM') ? MAIL_FROM : "noreply@{$mailHost}";
+                $replyHeader = defined('MAIL_REPLY_TO') ? MAIL_REPLY_TO : "admin@{$mailHost}";
+                $headers = "From: {$fromHeader}\r\nReply-To: {$replyHeader}\r\nX-Mailer: NexusGrid Enterprise/2.4";
+                $emailSent = @mail($contributorEmail, $subject, $body, $headers);
+            }
+
+            echo json_encode([
+                'success' => true,
+                'emailSent' => $emailSent,
+                'finalScore' => $finalScore,
+                'adminScore' => $adminScore,
+                'autoScore' => $storedAutoScore,
+                'feedbackLabel' => $feedbackLabel,
+                'feedback' => $feedback
+            ]);
+            break;
+
+        // --- 5b. ADMIN EMAIL NOTIFICATION ---
+        case 'admin_notify':
+            if ($method !== 'POST') {
+                http_response_code(405);
+                echo json_encode(['error' => 'Method Not Allowed']);
+                exit;
+            }
+
+            $input = getRequestData();
+            $subject = trim($input['subject'] ?? '');
+            $message = trim($input['message'] ?? '');
+            $sendAll = !empty($input['send_all']);
+            $toEmail = strtolower(trim($input['to_email'] ?? ''));
+
+            if (empty($subject) || empty($message)) {
+                http_response_code(400);
+                echo json_encode(['error' => 'Subject and message are required.']);
+                exit;
+            }
+
+            $mailHost = preg_replace('/:\d+$/', '', $_SERVER['HTTP_HOST'] ?? 'nexusgrid.site');
+            $fromHeader = defined('MAIL_FROM') ? MAIL_FROM : "noreply@{$mailHost}";
+            $replyHeader = defined('MAIL_REPLY_TO') ? MAIL_REPLY_TO : "admin@{$mailHost}";
+            $headers = "From: {$fromHeader}\r\nReply-To: {$replyHeader}\r\nX-Mailer: NexusGrid Enterprise/2.4\r\nContent-Type: text/plain; charset=UTF-8";
+            $sentCount = 0;
+
+            if ($sendAll) {
+                // Email every active contributor
+                $allUsers = $pdo->query("SELECT email, name FROM users WHERE role = 'contributor' AND status = 'active'")->fetchAll();
+                foreach ($allUsers as $user) {
+                    $personalised = "Hello {$user['name']},\r\n\r\n{$message}\r\n\r\n— The NexusGrid Admin Team\r\n";
+                    if (@mail($user['email'], $subject, $personalised, $headers)) {
+                        $sentCount++;
+                    }
+                }
+                echo json_encode(['success' => true, 'send_all' => true, 'sent' => $sentCount]);
+            } else {
+                if (empty($toEmail)) {
+                    http_response_code(400);
+                    echo json_encode(['error' => 'Recipient email is required.']);
+                    exit;
+                }
+                // Personalise if we find the user's name
+                $nameRow = $pdo->prepare("SELECT name FROM users WHERE LOWER(email) = ? LIMIT 1");
+                $nameRow->execute([$toEmail]);
+                $nameResult = $nameRow->fetch();
+                $recipientName = $nameResult ? $nameResult['name'] : 'Contributor';
+                $body = "Hello {$recipientName},\r\n\r\n{$message}\r\n\r\n— The NexusGrid Admin Team\r\n";
+                $emailSent = @mail($toEmail, $subject, $body, $headers);
+                echo json_encode(['success' => true, 'emailSent' => $emailSent, 'to' => $toEmail]);
+            }
             break;
 
         // --- 6. CONTRIBUTOR ACCOUNT STATS ---
@@ -549,6 +758,15 @@ try {
             $sStmt->execute([$email]);
             $security = $sStmt->fetch();
 
+            // Daily submissions check
+            $todayStmt = $pdo->prepare("
+                SELECT COUNT(*) FROM submissions 
+                WHERE LOWER(contributor_email) = ? 
+                AND DATE(submitted_at) = CURRENT_DATE
+            ");
+            $todayStmt->execute([$email]);
+            $todayCount = (int)$todayStmt->fetchColumn();
+
             echo json_encode([
                 'email' => $email,
                 'isAuthorized' => $isAuthorized,
@@ -560,6 +778,9 @@ try {
                 'pendingCount' => (int)$stats['pendingCount'],
                 'totalCount' => (int)$stats['totalCount'],
                 'accumulatedMoney' => round((float)($stats['accumulatedMoney'] ?? 0), 2),
+                'todayCount' => $todayCount,
+                'maxDaily' => 2,
+                'canSubmitToday' => ($todayCount < 2),
                 'isVerified' => !empty($verified),
                 'security' => $security ?: null
             ]);
@@ -583,11 +804,19 @@ try {
                 exit;
             }
 
-            $stmt = $pdo->prepare("
-                INSERT INTO verified_contributors (email, doc_type, verified_at)
-                VALUES (?, ?, NOW())
-                ON DUPLICATE KEY UPDATE doc_type = VALUES(doc_type), verified_at = NOW()
-            ");
+            if (getDBDriver() === 'pgsql') {
+                $stmt = $pdo->prepare("
+                    INSERT INTO verified_contributors (email, doc_type, verified_at)
+                    VALUES (?, ?, NOW())
+                    ON CONFLICT (email) DO UPDATE SET doc_type = EXCLUDED.doc_type, verified_at = NOW()
+                ");
+            } else {
+                $stmt = $pdo->prepare("
+                    INSERT INTO verified_contributors (email, doc_type, verified_at)
+                    VALUES (?, ?, NOW())
+                    ON DUPLICATE KEY UPDATE doc_type = VALUES(doc_type), verified_at = NOW()
+                ");
+            }
             $stmt->execute([$email, $docType]);
 
             echo json_encode(['success' => true, 'verified' => true, 'email' => $email]);
@@ -620,11 +849,19 @@ try {
                 exit;
             }
 
-            $stmt = $pdo->prepare("
-                INSERT INTO account_controls (email, status, country, flagged_at)
-                VALUES (?, 'flagged', ?, NOW())
-                ON DUPLICATE KEY UPDATE status = 'flagged', country = VALUES(country), flagged_at = NOW()
-            ");
+            if (getDBDriver() === 'pgsql') {
+                $stmt = $pdo->prepare("
+                    INSERT INTO account_controls (email, status, country, flagged_at)
+                    VALUES (?, 'flagged', ?, NOW())
+                    ON CONFLICT (email) DO UPDATE SET status = 'flagged', country = EXCLUDED.country, flagged_at = NOW()
+                ");
+            } else {
+                $stmt = $pdo->prepare("
+                    INSERT INTO account_controls (email, status, country, flagged_at)
+                    VALUES (?, 'flagged', ?, NOW())
+                    ON DUPLICATE KEY UPDATE status = 'flagged', country = VALUES(country), flagged_at = NOW()
+                ");
+            }
             $stmt->execute([$email, $country]);
 
             echo json_encode(['success' => true, 'email' => $email, 'status' => 'flagged', 'country' => $country]);
@@ -653,9 +890,86 @@ try {
             echo json_encode(['success' => true]);
             break;
 
+        // --- NEXUSGRID WORK STREAMS & ALIGNMENT PROTOCOLS ---
+        case 'work_streams':
+            $stmt = $pdo->query("SELECT * FROM work_streams ORDER BY base_rate DESC");
+            $streams = $stmt->fetchAll();
+            
+            // Augment with live task counts per stream
+            foreach ($streams as &$stream) {
+                $countStmt = $pdo->prepare("SELECT COUNT(*) FROM tasks WHERE stream_id = ?");
+                $countStmt->execute([$stream['id']]);
+                $stream['task_count'] = (int) $countStmt->fetchColumn();
+            }
+            unset($stream);
+
+            echo json_encode([
+                'success' => true,
+                'source' => 'https://www.nexugrid.site/dashboard',
+                'protocol' => 'United States AI Alignment Protocol',
+                'streams' => $streams
+            ]);
+            break;
+
+        case 'assessment_test':
+            $stmt = $pdo->query("SELECT id, question_text, option_a, option_b, option_c, option_d FROM assessment_questions ORDER BY id ASC");
+            $rows = $stmt->fetchAll();
+            $assessmentData = [];
+            foreach ($rows as $r) {
+                $assessmentData[] = [
+                    'id' => (int)$r['id'],
+                    'q' => $r['question_text'],
+                    'options' => [$r['option_a'], $r['option_b'], $r['option_c'], $r['option_d']]
+                ];
+            }
+            echo json_encode([
+                'success' => true,
+                'threshold' => '70%',
+                'assessmentData' => $assessmentData
+            ]);
+            break;
+
+        case 'submit_assessment':
+            if ($method !== 'POST') {
+                http_response_code(405);
+                echo json_encode(['error' => 'Method Not Allowed']);
+                exit;
+            }
+            $input = getRequestData();
+            $answers = $input['answers'] ?? [];
+            if (!is_array($answers) || empty($answers)) {
+                http_response_code(400);
+                echo json_encode(['error' => 'Answers array required']);
+                exit;
+            }
+
+            $stmt = $pdo->query("SELECT id, correct_index FROM assessment_questions ORDER BY id ASC");
+            $correctAnswers = $stmt->fetchAll();
+            $correctCount = 0;
+            $total = count($correctAnswers);
+
+            foreach ($correctAnswers as $idx => $row) {
+                if (isset($answers[$idx]) && (int)$answers[$idx] === (int)$row['correct_index']) {
+                    $correctCount++;
+                }
+            }
+
+            $score = $total > 0 ? round(($correctCount / $total) * 100) : 0;
+            $passed = $score >= 70;
+
+            echo json_encode([
+                'success' => true,
+                'score' => $score,
+                'passed' => $passed,
+                'message' => $passed 
+                    ? "Security clearance granted. Production work streams unlocked." 
+                    : "Accuracy threshold (70%) not reached. Review guidelines and re-attempt."
+            ]);
+            break;
+
         default:
             echo json_encode([
-                'status' => 'GiveGrid PHP API Running with User Authentication',
+                'status' => 'NexusGrid PHP API Running with User Authentication & AI Alignment Streams',
                 'endpoints' => [
                     'login' => '?action=login',
                     'current_user' => '?action=current_user',

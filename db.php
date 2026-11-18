@@ -1,44 +1,236 @@
 <?php
 /**
- * GiveGrid - Database Configuration & Initialization
- * Connects to MySQL in Laragon
+ * NexusGrid — Database Configuration & Initialization
+ * Supports:
+ *  - PostgreSQL (Vercel Postgres, Neon, Supabase, Render, AWS RDS)
+ *  - MySQL / MariaDB (WampServer, XAMPP, cPanel)
  */
 
-define('DB_HOST', '127.0.0.1');
-define('DB_PORT', '3306');
-define('DB_NAME', 'givegrid');
-define('DB_USER', 'root');
-define('DB_PASS', '');
+// Load custom config.php if present (recommended for live hosting)
+if (file_exists(__DIR__ . '/config.php')) {
+    require_once __DIR__ . '/config.php';
+}
+
+// 1. Check for standard cloud PostgreSQL connection strings (Vercel, Neon, Supabase)
+$cloudPgUrl = '';
+if (getenv('POSTGRES_URL')) {
+    $cloudPgUrl = getenv('POSTGRES_URL');
+} elseif (getenv('DATABASE_URL')) {
+    $cloudPgUrl = getenv('DATABASE_URL');
+} elseif (getenv('POSTGRES_URL_NON_POOLING')) {
+    $cloudPgUrl = getenv('POSTGRES_URL_NON_POOLING');
+} elseif (defined('POSTGRES_URL') && POSTGRES_URL) {
+    $cloudPgUrl = POSTGRES_URL;
+} elseif (defined('DATABASE_URL') && DATABASE_URL) {
+    $cloudPgUrl = DATABASE_URL;
+}
+
+defined('POSTGRES_URL') || define('POSTGRES_URL', $cloudPgUrl);
+defined('DB_CONNECTION') || define('DB_CONNECTION', getenv('DB_CONNECTION') ?: (!empty($cloudPgUrl) || getenv('PGHOST') ? 'pgsql' : 'mysql'));
+defined('DB_HOST') || define('DB_HOST', getenv('DB_HOST') ?: (getenv('PGHOST') ?: '127.0.0.1'));
+defined('DB_PORT') || define('DB_PORT', getenv('DB_PORT') ?: (getenv('PGPORT') ?: (DB_CONNECTION === 'pgsql' ? '5432' : '3306')));
+defined('DB_NAME') || define('DB_NAME', getenv('DB_NAME') ?: (getenv('PGDATABASE') ?: 'givegrid'));
+defined('DB_USER') || define('DB_USER', getenv('DB_USER') ?: (getenv('PGUSER') ?: 'root'));
+defined('DB_PASS') || define('DB_PASS', getenv('DB_PASS') !== false ? getenv('DB_PASS') : (getenv('PGPASSWORD') !== false ? getenv('PGPASSWORD') : ''));
+defined('DB_SSLMODE') || define('DB_SSLMODE', getenv('DB_SSLMODE') ?: (getenv('PGSSLMODE') ?: 'prefer'));
+defined('APP_DEBUG') || define('APP_DEBUG', getenv('APP_DEBUG') === 'true');
+
+function respondDbError(string $message, string $details = ''): never {
+    $isJson = (isset($_SERVER['HTTP_ACCEPT']) && str_contains($_SERVER['HTTP_ACCEPT'], 'application/json'))
+              || (isset($_SERVER['SCRIPT_NAME']) && basename($_SERVER['SCRIPT_NAME']) === 'api.php');
+
+    $isLocal = in_array(DB_HOST, ['127.0.0.1', 'localhost'], true);
+    $showDetails = (defined('APP_DEBUG') && APP_DEBUG) || $isLocal;
+    $engine = DB_CONNECTION === 'pgsql' ? 'PostgreSQL' : 'MySQL';
+
+    if ($isJson) {
+        header('Content-Type: application/json; charset=utf-8', true, 500);
+        echo json_encode([
+            'error' => $message,
+            'engine' => $engine,
+            'details' => $showDetails ? $details : 'Database connection error. Please verify database credentials or POSTGRES_URL.',
+            'hint' => 'Check config.php or environment variables (POSTGRES_URL, DATABASE_URL, or DB_HOST/DB_NAME/DB_USER).'
+        ], JSON_PRETTY_PRINT);
+    } else {
+        header('Content-Type: text/html; charset=utf-8', true, 500);
+        $displayDetails = htmlspecialchars($showDetails ? $details : 'Database connection error.');
+        $hostDisplay = htmlspecialchars($_SERVER['HTTP_HOST'] ?? DB_HOST);
+        echo <<<HTML
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <title>Database Connection Notice — NexusGrid</title>
+    <style>
+        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: #090d12; color: #e1e7ec; display: flex; align-items: center; justify-content: center; min-height: 100vh; margin: 0; padding: 20px; box-sizing: border-box; }
+        .card { max-width: 620px; width: 100%; background: #0e1520; border: 1px solid #1e293b; border-radius: 12px; padding: 32px; box-shadow: 0 16px 48px rgba(0,0,0,0.6); }
+        h2 { margin-top: 0; color: #f87171; font-size: 20px; display: flex; align-items: center; gap: 10px; }
+        p { line-height: 1.6; color: #94a3b8; font-size: 14px; }
+        code, pre { font-family: Consolas, monospace; background: #070b10; border: 1px solid #1e293b; border-radius: 6px; padding: 4px 8px; font-size: 13px; color: #00dfa2; }
+        pre { padding: 14px; overflow-x: auto; color: #f87171; white-space: pre-wrap; word-break: break-all; margin: 16px 0; }
+        .steps { background: rgba(99, 102, 241, 0.08); border: 1px solid rgba(99, 102, 241, 0.25); border-radius: 8px; padding: 16px 20px; margin-top: 20px; }
+        .steps ol { margin: 8px 0 0 18px; padding: 0; font-size: 13px; color: #cbd5e1; line-height: 1.6; }
+        .steps li { margin-bottom: 6px; }
+    </style>
+</head>
+<body>
+    <div class="card">
+        <h2>⚠️ {$engine} Database Connection Notice</h2>
+        <p>NexusGrid could not connect to the database on <code>{$hostDisplay}</code>.</p>
+        <pre>{$displayDetails}</pre>
+        <div class="steps">
+            <strong style="color:#818cf8;">How to configure for Vercel / Cloud:</strong>
+            <ol>
+                <li><strong>Vercel Postgres / Neon / Supabase:</strong> Copy <code>POSTGRES_URL</code> or <code>DATABASE_URL</code> to your project Environment Variables or <code>config.php</code>.</li>
+                <li><strong>Import Schema:</strong> Run <code>database_postgres.sql</code> in the Vercel Postgres / Neon SQL Query console.</li>
+                <li><strong>Local MySQL:</strong> Start WampServer / MySQL on port <code>3306</code> and import <code>database.sql</code>.</li>
+                <li>Refresh this page to access NexusGrid.</li>
+            </ol>
+        </div>
+    </div>
+</body>
+</html>
+HTML;
+    }
+    exit;
+}
+
+function getDBDriver(): string {
+    static $driver = null;
+    if ($driver !== null) {
+        return $driver;
+    }
+    $pdo = getDBConnection();
+    $driver = $pdo->getAttribute(PDO::ATTR_DRIVER_NAME);
+    return $driver;
+}
 
 function getDBConnection(): PDO {
     static $pdo = null;
-    if ($pdo === null) {
-        $dsn = "mysql:host=" . DB_HOST . ";port=" . DB_PORT . ";dbname=" . DB_NAME . ";charset=utf8mb4";
-        $options = [
-            PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,
-            PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC,
-            PDO::ATTR_EMULATE_PREPARES => false,
-        ];
+    if ($pdo !== null) {
+        return $pdo;
+    }
+
+    $options = [
+        PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,
+        PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC,
+        PDO::ATTR_EMULATE_PREPARES => false,
+    ];
+
+    $lastException = null;
+
+    // --- A. CONNECT VIA POSTGRES_URL OR DATABASE_URL (Vercel, Neon, Supabase) ---
+    $pgUrl = POSTGRES_URL;
+    if (!empty($pgUrl)) {
         try {
-            $pdo = new PDO($dsn, DB_USER, DB_PASS, $options);
+            $parts = parse_url($pgUrl);
+            $scheme = strtolower($parts['scheme'] ?? '');
+            if (str_starts_with($scheme, 'postgres')) {
+                $host = $parts['host'] ?? 'localhost';
+                $port = $parts['port'] ?? 5432;
+                $user = urldecode($parts['user'] ?? '');
+                $pass = urldecode($parts['pass'] ?? '');
+                $dbname = ltrim(urldecode($parts['path'] ?? ''), '/');
+
+                $queryParams = [];
+                if (!empty($parts['query'])) {
+                    parse_str($parts['query'], $queryParams);
+                }
+                $sslmode = $queryParams['sslmode'] ?? 'require';
+
+                $dsn = "pgsql:host={$host};port={$port};dbname={$dbname};sslmode={$sslmode}";
+                $pdo = new PDO($dsn, $user, $pass, $options);
+                return $pdo;
+            }
         } catch (PDOException $e) {
-            header('Content-Type: application/json', true, 500);
-            echo json_encode(['error' => 'Database connection error: ' . $e->getMessage()]);
-            exit;
+            $lastException = $e;
         }
     }
-    return $pdo;
+
+    // --- B. CONNECT VIA POSTGRESQL CONSTANTS (DB_CONNECTION = 'pgsql') ---
+    if (DB_CONNECTION === 'pgsql') {
+        try {
+            $host = DB_HOST;
+            $port = DB_PORT ?: 5432;
+            $dbname = DB_NAME;
+            $user = DB_USER;
+            $pass = DB_PASS;
+            $sslmode = DB_SSLMODE;
+
+            $dsn = "pgsql:host={$host};port={$port};dbname={$dbname};sslmode={$sslmode}";
+            $pdo = new PDO($dsn, $user, $pass, $options);
+            return $pdo;
+        } catch (PDOException $e) {
+            $lastException = $e;
+        }
+    }
+
+    // --- C. FALLBACK TO MYSQL / MARIADB (Local WampServer / XAMPP / cPanel) ---
+    $portsToTry = [DB_PORT];
+    if (DB_PORT !== '3307') {
+        $portsToTry[] = '3307';
+    }
+
+    foreach ($portsToTry as $port) {
+        try {
+            $dsn = "mysql:host=" . DB_HOST . ";port=" . $port . ";dbname=" . DB_NAME . ";charset=utf8mb4";
+            $pdo = new PDO($dsn, DB_USER, DB_PASS, $options);
+            return $pdo;
+        } catch (PDOException $e) {
+            $lastException = $e;
+            if ($e->getCode() == 1049 || str_contains($e->getMessage(), 'Unknown database')) {
+                try {
+                    $rootDsn = "mysql:host=" . DB_HOST . ";port=" . $port . ";charset=utf8mb4";
+                    $rootPdo = new PDO($rootDsn, DB_USER, DB_PASS, $options);
+                    $rootPdo->exec("CREATE DATABASE IF NOT EXISTS `" . DB_NAME . "` CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci");
+                    $pdo = new PDO($dsn, DB_USER, DB_PASS, $options);
+                    return $pdo;
+                } catch (PDOException $createEx) {
+                    $lastException = $createEx;
+                }
+            }
+        }
+    }
+
+    respondDbError("Failed to connect to Database (" . (DB_CONNECTION === 'pgsql' ? 'PostgreSQL' : 'MySQL') . ")", $lastException ? $lastException->getMessage() : "Connection refused");
 }
 
 // Ensure database tables and initial catalog seed exist
 function initAndSeedDatabase(): void {
+    static $isSeeded = false;
+    if ($isSeeded) {
+        return;
+    }
+    $isSeeded = true;
+
     $pdo = getDBConnection();
+    $driver = getDBDriver();
+
+    // Universal table existence check (works on both PostgreSQL and MySQL)
+    try {
+        $checkStmt = $pdo->query("SELECT 1 FROM information_schema.tables WHERE table_name = 'tasks'");
+        $exists = (bool) $checkStmt->fetchColumn();
+
+        if (!$exists) {
+            $schemaFile = ($driver === 'pgsql') 
+                ? __DIR__ . '/database_postgres.sql' 
+                : __DIR__ . '/database.sql';
+
+            if (file_exists($schemaFile)) {
+                $sql = file_get_contents($schemaFile);
+                $pdo->exec($sql);
+            }
+        }
+    } catch (PDOException $e) {
+        // Table exists or already populated
+    }
 
     // Check if tasks table is populated
     $stmt = $pdo->query("SELECT COUNT(*) AS total FROM tasks");
     $count = (int) $stmt->fetchColumn();
 
     if ($count > 0) {
+        ensureUsersTableAndSeed($pdo);
         return; // Already seeded
     }
 
@@ -231,7 +423,16 @@ function ensureUsersTableAndSeed(PDO $pdo): void {
             VALUES (?, ?, ?, ?, ?)
         ");
 
-        // Default admin: admin@givegrid.com / admin123
+        // Default admin: admin@nexusgrid.com / admin123
+        $insert->execute([
+            'Nexus Admin',
+            'admin@nexusgrid.com',
+            password_hash('admin123', PASSWORD_DEFAULT),
+            'admin',
+            'active'
+        ]);
+
+        // Legacy admin: admin@givegrid.com / admin123
         $insert->execute([
             'Grid Admin',
             'admin@givegrid.com',

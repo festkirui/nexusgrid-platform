@@ -1,0 +1,55 @@
+{
+  "version": 2,
+  "functions": {
+    "api.php": {
+      "runtime": "vercel-php@0.7.1"
+    },
+    "index.php": {
+      "runtime": "vercel-php@0.7.1"
+    },
+    "admin.php": {
+      "runtime": "vercel-php@0.7.1"
+    }
+  },
+  "routes": [
+    {
+      "src": "/api.php",
+      "dest": "/api.php"
+    },
+    {
+      "src": "/admin.php",
+      "dest": "/admin.php"
+    },
+    {
+      "src": "/index.php",
+      "dest": "/index.php"
+    },
+    {
+      "src": "/styles.css",
+      "dest": "/styles.css"
+    },
+    {
+      "src": "/app.js",
+      "dest": "/app.js"
+    },
+    {
+      "src": "/admin.js",
+      "dest": "/admin.js"
+    },
+    {
+      "src": "/nexusgrid-production.zip",
+      "dest": "/nexusgrid-production.zip"
+    },
+    {
+      "src": "/",
+      "dest": "/index.php"
+    },
+    {
+      "src": "/(.*)",
+      "dest": "/index.php"
+    }
+  ],
+  "env": {
+    "DB_CONNECTION": "pgsql"
+  }
+}

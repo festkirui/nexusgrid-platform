@@ -1,10 +1,10 @@
-// GiveGrid Admin Workspace Controller (admin.js)
-// Dedicated logic for admin.php connecting with api.php & Laragon MySQL
+// NexusGrid Admin Workspace Controller (admin.js)
+// Dedicated logic for admin.php connecting with api.php & WampServer MySQL
 
-let adminAuthToken = localStorage.getItem('givegrid_auth_token') || null;
+let adminAuthToken = localStorage.getItem('nexusgrid_auth_token') || localStorage.getItem('givegrid_auth_token') || null;
 let currentAdminUser = null;
 try {
-  currentAdminUser = JSON.parse(localStorage.getItem('givegrid_auth_user'));
+  currentAdminUser = JSON.parse(localStorage.getItem('nexusgrid_auth_user') || localStorage.getItem('givegrid_auth_user'));
 } catch (e) {
   currentAdminUser = null;
 }
@@ -30,6 +30,16 @@ function showToast(message) {
   toast.classList.add('show');
   clearTimeout(toastTimer);
   toastTimer = setTimeout(() => toast.classList.remove('show'), 2800);
+}
+
+// Score Label Helper
+function getScoreLabel(score) {
+  if (score >= 4.8) return 'Very Excellent ⭐';
+  if (score >= 4.0) return 'Excellent 🟩';
+  if (score >= 3.5) return 'Good 🟦';
+  if (score >= 2.5) return 'Fair 🟨';
+  if (score >= 1.5) return 'Poor 🟥';
+  return 'Very Poor ⬛';
 }
 
 // -----------------------------------------------------------------------------
@@ -95,8 +105,8 @@ if (adminLoginForm) {
 
       adminAuthToken = data.token;
       currentAdminUser = data.user;
-      localStorage.setItem('givegrid_auth_token', adminAuthToken);
-      localStorage.setItem('givegrid_auth_user', JSON.stringify(currentAdminUser));
+      localStorage.setItem('nexusgrid_auth_token', adminAuthToken);
+      localStorage.setItem('nexusgrid_auth_user', JSON.stringify(currentAdminUser));
 
       updateAdminUI();
       showToast(`Welcome Administrator, ${data.user.name}!`);
@@ -122,6 +132,8 @@ document.querySelector('#adminLogoutBtn')?.addEventListener('click', async () =>
 
   adminAuthToken = null;
   currentAdminUser = null;
+  localStorage.removeItem('nexusgrid_auth_token');
+  localStorage.removeItem('nexusgrid_auth_user');
   localStorage.removeItem('givegrid_auth_token');
   localStorage.removeItem('givegrid_auth_user');
 
@@ -170,36 +182,101 @@ async function loadAdminData() {
       if (pending.length === 0) {
         queueEl.innerHTML = '<p class="empty-state">New task submissions will appear here for review.</p>';
       } else {
-        queueEl.innerHTML = pending.map(item => `
+        queueEl.innerHTML = pending.map(item => {
+          const autoScore = item.autoScore ? parseFloat(item.autoScore) : null;
+          const autoLabel = autoScore !== null ? getScoreLabel(autoScore) : null;
+          const dimData = item.dimScores ? (typeof item.dimScores === 'string' ? JSON.parse(item.dimScores) : item.dimScores) : null;
+          return `
           <details class="review-item">
             <summary>
               <span>
                 <b>${escapeHtml(item.taskTitle)}</b>
                 <small>${escapeHtml(item.name)} · ${escapeHtml(item.email)}</small>
               </span>
-              <i>REVIEW</i>
+              ${autoScore !== null
+                ? `<span class="auto-score-pill" title="Auto-calculated from contributor's dimensional ratings">${autoScore.toFixed(2)}/5 · ${autoLabel}</span>`
+                : `<i>REVIEW</i>`
+              }
             </summary>
             <div class="review-body">
               <div class="submitted-answer">${escapeHtml(item.response).replace(/\n/g, '<br>')}</div>
-              <form class="grade-form" data-submission="${escapeHtml(item.id)}">
-                <label>Grade
-                  <select name="score" required>
-                    <option value="">Choose score</option>
-                    <option value="5">5 — Excellent</option>
-                    <option value="4">4 — Strong</option>
-                    <option value="3">3 — Meets expectations</option>
-                    <option value="2">2 — Needs improvement</option>
-                    <option value="1">1 — Inadequate</option>
+
+              ${autoScore !== null ? `
+              <div class="auto-score-breakdown" style="margin: 12px 0; padding: 14px 16px; background:rgba(99,102,241,0.06); border:1px solid rgba(99,102,241,0.18); border-radius:8px;">
+                <div style="font-size:10px; font-weight:700; text-transform:uppercase; letter-spacing:0.1em; color:#818cf8; margin-bottom:8px;">
+                  📊 Auto-Calculated Score from Dimensional Ratings
+                </div>
+                <div style="display:flex; align-items:center; gap:14px; flex-wrap:wrap;">
+                  <strong style="font-size:28px; color:#e2e8f0; font-family:var(--mono);">${autoScore.toFixed(2)}<span style="font-size:14px; color:#64748b;">/5</span></strong>
+                  <span class="auto-score-pill">${autoLabel}</span>
+                </div>
+                ${dimData ? `<div style="display:flex; gap:8px; flex-wrap:wrap; margin-top:10px;">
+                  ${Object.entries(dimData).map(([k, v]) => `<span style="font-size:10px; padding:3px 8px; background:rgba(99,102,241,0.12); border:1px solid rgba(99,102,241,0.2); border-radius:4px; color:#94a3b8; font-family:var(--mono);">${k}: ${v}/5</span>`).join('')}
+                </div>` : ''}
+                <small style="display:block; margin-top:8px; color:#64748b; font-size:10px;">Final score = Admin grade (60%) + Auto-score (40%). If no manual grade is selected, the auto-score is used directly.</small>
+              </div>
+              ` : ''}
+
+              <form class="grade-form" data-submission="${escapeHtml(item.id)}" data-email="${escapeHtml(item.email)}" data-name="${escapeHtml(item.name)}" data-auto-score="${autoScore || ''}">
+                <label>Grade (out of 5)
+                  <div class="grade-score-row">
+                    ${[1,2,3,4,5].map(n => `<button type="button" class="grade-score-btn" data-score="${n}">${n}</button>`).join('')}
+                    <input type="hidden" name="score" class="grade-score-hidden" value="">
+                    <span class="final-score-preview" style="margin-left:12px; font-family:var(--mono); font-size:12px; color:#64748b;"></span>
+                  </div>
+                </label>
+                <label>Feedback Rating
+                  <select name="feedback_label" required>
+                    <option value="">Select feedback label</option>
+                    <option value="Very Poor">⬛ Very Poor (1/5) — Needs major revision</option>
+                    <option value="Poor">🟥 Poor (2/5) — Below expectations</option>
+                    <option value="Fair">🟨 Fair (3/5) — Meets minimum standards</option>
+                    <option value="Good">🟦 Good (4/5) — Strong and accurate</option>
+                    <option value="Excellent">🟩 Excellent (5/5) — Outstanding quality</option>
+                    <option value="Very Excellent">⭐ Very Excellent (5/5+) — Exceptional, top-tier work</option>
                   </select>
                 </label>
-                <label>Feedback
-                  <textarea name="feedback" maxlength="500" rows="2" placeholder="Optional notes for contributor"></textarea>
+                <label>Additional Notes (optional)
+                  <textarea name="feedback_note" maxlength="500" rows="2" placeholder="Extra comments for the contributor..."></textarea>
                 </label>
-                <button class="button button-bright" type="submit">Approve &amp; grade <span>✓</span></button>
+                <div style="display:flex; gap:10px; flex-wrap:wrap; align-items:center;">
+                  <button class="button button-bright" type="submit">Approve &amp; Grade <span>✓</span></button>
+                  <label style="display:flex; align-items:center; gap:6px; font-size:11px; color:#94a3b8; cursor:pointer;">
+                    <input type="checkbox" name="send_email" value="1" checked style="accent-color:#00dfa2;">
+                    Send grade email to contributor
+                  </label>
+                </div>
               </form>
             </div>
           </details>
-        `).join('');
+        `}).join('');
+
+        // Wire up score buttons with live final-score preview
+        queueEl.querySelectorAll('.grade-score-btn').forEach(btn => {
+          btn.addEventListener('click', () => {
+            const form = btn.closest('.grade-form');
+            form.querySelectorAll('.grade-score-btn').forEach(b => b.classList.remove('active'));
+            btn.classList.add('active');
+            form.querySelector('.grade-score-hidden').value = btn.dataset.score;
+            // Auto-select matching feedback label
+            const scoreMap = { '1': 'Very Poor', '2': 'Poor', '3': 'Fair', '4': 'Good', '5': 'Excellent' };
+            const sel = form.querySelector('select[name="feedback_label"]');
+            if (sel && scoreMap[btn.dataset.score]) sel.value = scoreMap[btn.dataset.score];
+
+            // Show live final-score preview (60% admin + 40% auto)
+            const preview = form.querySelector('.final-score-preview');
+            const autoScoreVal = parseFloat(form.dataset.autoScore);
+            const adminVal = parseInt(btn.dataset.score, 10);
+            if (preview) {
+              if (autoScoreVal > 0) {
+                const final = Math.round(((adminVal * 0.60) + (autoScoreVal * 0.40)) * 100) / 100;
+                preview.innerHTML = `→ Final: <strong style="color:#818cf8;">${final.toFixed(2)}</strong>/5 <span style="font-size:10px; color:#475569;">(Admin ${adminVal} × 60% + Auto ${autoScoreVal.toFixed(2)} × 40%)</span>`;
+              } else {
+                preview.innerHTML = `→ Final: <strong style="color:#818cf8;">${adminVal}.00</strong>/5`;
+              }
+            }
+          });
+        });
       }
     }
 
@@ -302,7 +379,8 @@ function initAdminActions() {
 
       // Setup Copy button
       document.querySelector('#copyCredBtn').onclick = () => {
-        navigator.clipboard?.writeText(`GiveGrid Contributor Logins:\nEmail: ${email}\nPassword: ${password}\nURL: http://localhost/givegrid/`);
+        const portalUrl = window.location.href.replace(/admin\.php.*$/, 'index.php');
+        navigator.clipboard?.writeText(`NexusGrid Contributor Logins:\nEmail: ${email}\nPassword: ${password}\nURL: ${portalUrl}`);
         showToast('Logins copied! Give them to the user.');
       };
 
@@ -329,7 +407,7 @@ function initAdminActions() {
       });
 
       if (res.ok) {
-        showToast('User status updated in MySQL.');
+        showToast('User status updated successfully.');
         loadAdminData();
       }
     } catch (err) {
@@ -344,11 +422,33 @@ function initAdminActions() {
     event.preventDefault();
 
     const submissionId = form.dataset.submission;
+    const contributorEmail = form.dataset.email;
+    const contributorName = form.dataset.name;
     const formData = new FormData(form);
+    const score = formData.get('score');
+    const feedbackLabel = formData.get('feedback_label');
+    const feedbackNote = (formData.get('feedback_note') || '').trim();
+    const sendEmail = formData.get('send_email') === '1';
+
+    if (!score) {
+      showToast('Please select a grade score (1–5) before approving.');
+      return;
+    }
+    if (!feedbackLabel) {
+      showToast('Please select a feedback label before approving.');
+      return;
+    }
+
+    const fullFeedback = feedbackNote ? `${feedbackLabel}. ${feedbackNote}` : feedbackLabel;
+
     const payload = {
       id: submissionId,
-      score: formData.get('score'),
-      feedback: formData.get('feedback')
+      score: parseFloat(score),
+      feedback: fullFeedback,
+      feedback_label: feedbackLabel,
+      send_email: sendEmail,
+      contributor_email: contributorEmail,
+      contributor_name: contributorName
     };
 
     try {
@@ -358,9 +458,15 @@ function initAdminActions() {
         body: JSON.stringify(payload)
       });
 
+      const data = await res.json();
       if (res.ok) {
-        showToast('Submission approved and graded in MySQL!');
+        const finalScore = data.finalScore ? parseFloat(data.finalScore).toFixed(2) : score;
+        const autoNote = data.autoScore > 0 ? ` (Admin ${score} × 60% + Auto ${parseFloat(data.autoScore).toFixed(2)} × 40%)` : '';
+        const emailNote = sendEmail ? (data.emailSent ? ' · Email sent ✓' : ' · Email delivery attempted') : '';
+        showToast(`✓ Final Score: ${finalScore}/5 — ${data.feedbackLabel || feedbackLabel}${autoNote}${emailNote}`);
         loadAdminData();
+      } else {
+        showToast(data.error || 'Failed to grade submission.');
       }
     } catch (err) {
       console.error(err);
@@ -392,7 +498,7 @@ function initAdminActions() {
         taskForm.reset();
         taskForm.elements.pay.value = 25;
         taskForm.elements.time.value = '30 min';
-        showToast('New opportunity published to MySQL!');
+        showToast('New opportunity published successfully!');
         loadAdminData();
       }
     } catch (err) {
@@ -420,7 +526,7 @@ function initAdminActions() {
 
       if (res.ok) {
         secForm.reset();
-        showToast('Contributor account flagged in MySQL.');
+        showToast('Contributor account flagged for review.');
         loadAdminData();
       }
     } catch (err) {
@@ -451,6 +557,99 @@ function initAdminActions() {
       console.error(err);
     }
   });
+
+  // Email Notification Form — send to individual or all contributors
+  const notifyForm = document.querySelector('#notifyForm');
+  notifyForm?.addEventListener('submit', async event => {
+    event.preventDefault();
+    const toEmail = document.querySelector('#notifyToEmail').value.trim();
+    const subject = document.querySelector('#notifySubject').value.trim();
+    const message = document.querySelector('#notifyMessage').value.trim();
+    const btn = document.querySelector('#notifySubmitBtn');
+    const statusEl = document.querySelector('#notifyStatus');
+
+    btn.disabled = true;
+    btn.textContent = 'Sending...';
+    if (statusEl) statusEl.style.display = 'none';
+
+    try {
+      const res = await fetch('api.php?action=admin_notify', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ to_email: toEmail, subject, message, send_all: false })
+      });
+      const data = await res.json();
+      if (res.ok) {
+        showToast(data.emailSent ? `✓ Email sent to ${toEmail}` : `Email attempted to ${toEmail} (check server mail config)`);
+        if (statusEl) {
+          statusEl.textContent = data.emailSent ? `✓ Delivered to ${toEmail}` : `⚠ Attempted — check server PHP mail() configuration`;
+          statusEl.style.display = 'block';
+          statusEl.style.color = data.emailSent ? 'var(--mint)' : '#f59e0b';
+        }
+        renderEmailLog(toEmail, subject, data.emailSent);
+        notifyForm.reset();
+      } else {
+        showToast(data.error || 'Failed to send email.');
+      }
+    } catch (err) {
+      console.error(err);
+      showToast('Error communicating with API.');
+    } finally {
+      btn.disabled = false;
+      btn.innerHTML = 'Send Email <span>✉</span>';
+    }
+  });
+
+  // "Email All Contributors" button
+  document.querySelector('#notifyAllBtn')?.addEventListener('click', async () => {
+    const subject = document.querySelector('#notifySubject').value.trim();
+    const message = document.querySelector('#notifyMessage').value.trim();
+    if (!subject || !message) {
+      showToast('Please fill in Subject and Message before emailing all contributors.');
+      return;
+    }
+    if (!confirm(`Send this email to ALL contributors?\n\nSubject: ${subject}`)) return;
+
+    const btn = document.querySelector('#notifyAllBtn');
+    btn.disabled = true;
+    btn.textContent = 'Sending to all...';
+
+    try {
+      const res = await fetch('api.php?action=admin_notify', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ subject, message, send_all: true })
+      });
+      const data = await res.json();
+      if (res.ok) {
+        showToast(`Broadcast sent to ${data.sent || 0} contributor(s).`);
+        renderEmailLog('ALL CONTRIBUTORS', subject, data.sent > 0);
+      } else {
+        showToast(data.error || 'Broadcast failed.');
+      }
+    } catch (err) {
+      console.error(err);
+    } finally {
+      btn.disabled = false;
+      btn.textContent = 'Email All Contributors';
+    }
+  });
+}
+
+// Render a simple in-page email log entry
+function renderEmailLog(to, subject, sent) {
+  const logEl = document.querySelector('#emailLog');
+  if (!logEl) return;
+  const existing = logEl.innerHTML === '' ? '' : logEl.innerHTML;
+  const time = new Date().toLocaleTimeString();
+  logEl.innerHTML = `<div class="email-log-entry ${sent ? 'log-sent' : 'log-failed'}">
+    <span class="log-icon">${sent ? '✉' : '⚠'}</span>
+    <div>
+      <strong>To: ${escapeHtml(to)}</strong>
+      <small>${escapeHtml(subject)}</small>
+    </div>
+    <span class="log-time">${time}</span>
+  </div>` + existing;
 }
 
 document.addEventListener('DOMContentLoaded', () => {

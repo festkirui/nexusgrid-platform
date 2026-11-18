@@ -1,0 +1,23 @@
+# Git ignore for NexusGrid
+
+# Config with credentials — NEVER commit
+config.php
+
+# Local exports & temp files
+export_to_postgres.php
+*.log
+*.tmp
+
+# Node
+node_modules/
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# IDE
+.vscode/
+.idea/
+
+# ZIP artifacts (download from releases)
+nexusgrid-production.zip
