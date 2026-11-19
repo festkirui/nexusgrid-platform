@@ -11,7 +11,7 @@
     "pg": "^8.11.3"
   },
   "scripts": {
-    "dev": "vercel dev",
+    "dev": "node dev-server.js",
     "deploy": "vercel --prod"
   }
 }

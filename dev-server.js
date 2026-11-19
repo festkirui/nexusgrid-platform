@@ -1,4 +1,4 @@
-// server.js — Local dev server for NexusGrid (mimics Vercel routing)
+// dev-server.js — Local dev server for NexusGrid (mimics Vercel routing)
 // Serves static files + proxies /api to the Node.js handler
 // Uses LOCAL MySQL for testing (matches WampServer setup)
 
