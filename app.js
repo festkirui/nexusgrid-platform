@@ -703,9 +703,10 @@ async function renderAccount() {
   const email = currentUser.email;
 
   try {
+    const headers = { Authorization: `Bearer ${authToken}` };
     const [accRes, subRes] = await Promise.all([
-      fetch(`/api?action=account&email=${encodeURIComponent(email)}`),
-      fetch(`/api?action=submissions&email=${encodeURIComponent(email)}`)
+      fetch(`/api?action=account&email=${encodeURIComponent(email)}`, { headers }),
+      fetch(`/api?action=submissions&email=${encodeURIComponent(email)}`, { headers })
     ]);
 
     const acc = await accRes.json();
@@ -865,7 +866,7 @@ function initEventListeners() {
     try {
       const res = await fetch('/api/index.js?action=verify', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${authToken}` },
         body: JSON.stringify({ email, docType })
       });
       if (res.ok) {

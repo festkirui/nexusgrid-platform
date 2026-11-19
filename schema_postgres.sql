@@ -157,10 +157,8 @@ SELECT setval('assessment_questions_id_seq', COALESCE((SELECT MAX(id) FROM asses
 -- -----------------------------------------------------
 -- Data for: users
 -- -----------------------------------------------------
-INSERT INTO users (id, name, email, password_hash, role, status, auth_token, created_at, last_login) VALUES (1, 'Grid Admin', 'admin@givegrid.com', '$2y$10$A1pUKywfti1qoMic.fWAjeaRNvWPOTOm2tsJ.weaomd0UEr23uGqK', 'admin', 'active', NULL, '2026-11-04 14:18:25', NULL);
 INSERT INTO users (id, name, email, password_hash, role, status, auth_token, created_at, last_login) VALUES (2, 'Alex Rivera', 'alex@example.com', '$2y$10$3VKOan5a9EipWwXe2u/f3e6Js54iNuDV2kmTiJJqd4Ewj5R5f7k8C', 'contributor', 'active', 'fa16a837db40251ba7e78709cc2cb7d23fd59aa298a37086', '2026-11-04 14:18:25', '2026-11-16 11:51:24');
 INSERT INTO users (id, name, email, password_hash, role, status, auth_token, created_at, last_login) VALUES (3, 'Festus Kirui', 'festus@example.com', '$2y$10$ryVJAyphoab/poyRMOOPP.ccQWgUKQcI0lYfuX5IVZsC84v830Ux6', 'contributor', 'active', NULL, '2026-11-04 14:18:25', NULL);
-INSERT INTO users (id, name, email, password_hash, role, status, auth_token, created_at, last_login) VALUES (4, 'Nexus Admin', 'admin@nexusgrid.com', '$2y$10$kE9POMrNO7SuowgNuyclOOGRFmiXvViwgazrZpKv2M5PDwSUQ21Ji', 'admin', 'active', NULL, '2026-11-04 14:44:24', '2026-11-16 12:18:01');
 SELECT setval('users_id_seq', COALESCE((SELECT MAX(id) FROM users), 1));
 
 -- -----------------------------------------------------

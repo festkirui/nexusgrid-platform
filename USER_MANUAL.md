@@ -34,7 +34,7 @@ NexusGrid separates operations into two distinct, secure environments:
 | Portal | URL Path | Intended Audience | Key Functions |
 |:---|:---|:---|:---|
 | **Contributor Portal** | `/index.php` (or `/`) | Qualified Human Evaluators | Browse active streams, complete RLHF audits, submit technical justifications, view earnings & ratings. |
-| **Admin Workspace** | `/admin.php` | Platform Administrators | Add/manage contributors, grade pending reviews with auto-score calculation, broadcast emails, publish tasks. |
+| **Admin Workspace** | `/admin.html` | Platform Administrators | Add/manage contributors, grade pending reviews with auto-score calculation, broadcast emails, publish tasks. |
 
 ---
 
@@ -146,11 +146,10 @@ Scroll down to the **Contributor Account** section (`#my-work`) to view your met
 ## 3. Administrator Guide (Platform Managers)
 
 ### 3.1 Accessing the Admin Workspace
-1. Navigate to `/admin.php` (or click **Admin Portal ↗** in the top navigation).
-2. Enter the administrator credentials:
-   - **Email:** `admin@nexusgrid.com`
-   - **Password:** `admin123`
-3. Click **`authorize me →`**.
+1. Navigate to `/admin.html` (or click **Admin Portal ↗** in the top navigation).
+2. On first use, enter the one-time setup secret configured as `ADMIN_BOOTSTRAP_SECRET` and choose a password of at least 12 characters. The account is created in Supabase Auth for `admin@nexusgrid.com`.
+3. Remove `ADMIN_BOOTSTRAP_SECRET` from the project environment after the account is created.
+4. Sign in with `admin@nexusgrid.com` and the password you chose, then click **`authorize me →`**.
 4. The dashboard unlocks, displaying platform KPI metrics:
    - *Pending Reviews*
    - *Tasks Completed*
@@ -258,7 +257,7 @@ Navigate to the **Email Notifications** panel (`#notifications`):
 
 | Role | Email | Password | Access Portal |
 |:---|:---|:---|:---|
-| **Administrator** | `admin@nexusgrid.com` | `admin123` | [admin.php](admin.php) |
+| **Administrator** | `admin@nexusgrid.com` | Set during one-time secure setup | [admin.html](admin.html) |
 | **Contributor (Alex)** | `alex@example.com` | `alex123` | [index.php](index.php) |
 | **Contributor (Festus)** | `festus@example.com` | `festus123` | [index.php](index.php) |
 

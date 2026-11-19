@@ -423,24 +423,6 @@ function ensureUsersTableAndSeed(PDO $pdo): void {
             VALUES (?, ?, ?, ?, ?)
         ");
 
-        // Default admin: admin@nexusgrid.com / admin123
-        $insert->execute([
-            'Nexus Admin',
-            'admin@nexusgrid.com',
-            password_hash('admin123', PASSWORD_DEFAULT),
-            'admin',
-            'active'
-        ]);
-
-        // Legacy admin: admin@givegrid.com / admin123
-        $insert->execute([
-            'Grid Admin',
-            'admin@givegrid.com',
-            password_hash('admin123', PASSWORD_DEFAULT),
-            'admin',
-            'active'
-        ]);
-
         // Default contributor: alex@example.com / alex123
         $insert->execute([
             'Alex Rivera',

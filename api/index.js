@@ -1,6 +1,103 @@
 // api/index.js — NexusGrid REST API (Node.js Serverless — Vercel)
 const { query, bcrypt } = require('./_db');
+const { createClient } = require('@supabase/supabase-js');
 const crypto = require('crypto');
+
+const ADMIN_EMAIL = 'admin@nexusgrid.com';
+const ADMIN_ACTIONS = new Set([
+  'admin_add_user', 'admin_list_users', 'admin_stats', 'admin_toggle_user',
+  'create_task', 'grade', 'admin_notify', 'security', 'security_flag',
+  'security_action'
+]);
+
+function getSupabaseClients() {
+  const url = process.env.SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const anonKey = process.env.SUPABASE_ANON_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || process.env.SUPABASE_PUBLISHABLE_KEY;
+  const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_SECRET_KEY;
+  if (!url || !anonKey || !serviceKey) throw new Error('Supabase Auth is not configured.');
+
+  const options = { auth: { autoRefreshToken: false, persistSession: false, detectSessionInUrl: false } };
+  return {
+    authClient: createClient(url, anonKey, options),
+    adminClient: createClient(url, serviceKey, options)
+  };
+}
+
+function getBearerToken(req) {
+  const match = (req.headers.authorization || '').match(/^Bearer\s+(\S+)$/i);
+  return match ? match[1] : '';
+}
+
+function getCookie(req, name) {
+  const cookie = (req.headers.cookie || '').split(';').map(part => part.trim());
+  const item = cookie.find(part => part.startsWith(`${name}=`));
+  if (!item) return '';
+  try { return decodeURIComponent(item.slice(name.length + 1)); } catch { return ''; }
+}
+
+function getAdminAccessToken(req) {
+  return getBearerToken(req) || getCookie(req, 'nexusgrid_admin_access');
+}
+
+function setAdminCookies(res, session) {
+  const accessMaxAge = Math.max(60, Math.floor(session.expires_in || 3600));
+  res.setHeader('Cache-Control', 'no-store');
+  res.setHeader('Set-Cookie', [
+    `nexusgrid_admin_access=${encodeURIComponent(session.access_token)}; HttpOnly; Secure; SameSite=Strict; Path=/api; Max-Age=${accessMaxAge}`,
+    `nexusgrid_admin_refresh=${encodeURIComponent(session.refresh_token)}; HttpOnly; Secure; SameSite=Strict; Path=/api; Max-Age=2592000`
+  ]);
+}
+
+function clearAdminCookies(res) {
+  res.setHeader('Cache-Control', 'no-store');
+  res.setHeader('Set-Cookie', [
+    'nexusgrid_admin_access=; HttpOnly; Secure; SameSite=Strict; Path=/api; Max-Age=0',
+    'nexusgrid_admin_refresh=; HttpOnly; Secure; SameSite=Strict; Path=/api; Max-Age=0'
+  ]);
+}
+
+function safeSecretEquals(expected, provided) {
+  if (typeof expected !== 'string' || typeof provided !== 'string') return false;
+  const expectedBuffer = Buffer.from(expected);
+  const providedBuffer = Buffer.from(provided);
+  return expectedBuffer.length === providedBuffer.length && crypto.timingSafeEqual(expectedBuffer, providedBuffer);
+}
+
+async function listAuthUsers(adminClient) {
+  const users = [];
+  for (let page = 1; page <= 100; page += 1) {
+    const { data, error } = await adminClient.auth.admin.listUsers({ page, perPage: 1000 });
+    if (error) throw error;
+    const batch = data.users || [];
+    users.push(...batch);
+    if (batch.length < 1000) return users;
+  }
+  throw new Error('Unable to verify Supabase administrator setup state.');
+}
+
+async function authenticateAdmin(req) {
+  const token = getAdminAccessToken(req);
+  if (!token) return { error: { status: 401, message: 'Authentication required.' } };
+
+  const { adminClient } = getSupabaseClients();
+  const { data, error } = await adminClient.auth.getUser(token);
+  if (error || !data.user) return { error: { status: 401, message: 'Session expired. Please sign in again.' } };
+  if (data.user.app_metadata?.role !== 'admin' || data.user.email?.toLowerCase() !== ADMIN_EMAIL) {
+    return { error: { status: 403, message: 'Administrator access required.' } };
+  }
+  return { user: data.user };
+}
+
+async function getContributorForEmail(req, email) {
+  const token = getBearerToken(req);
+  if (!token || !email) return null;
+  const { rows } = await query(
+    "SELECT email FROM users WHERE auth_token = $1 AND role = 'contributor' AND status = 'active' LIMIT 1",
+    [token]
+  );
+  const user = rows[0];
+  return user?.email?.toLowerCase() === email.toLowerCase() ? user : null;
+}
 
 function setCorsHeaders(res) {
   res.setHeader('Content-Type', 'application/json; charset=utf-8');
@@ -32,6 +129,118 @@ module.exports = async function handler(req, res) {
   const method = req.method;
 
   try {
+    if (action === 'admin_bootstrap_status') {
+      res.setHeader('Cache-Control', 'no-store');
+      const { adminClient } = getSupabaseClients();
+      const users = await listAuthUsers(adminClient);
+      const hasAdmin = users.some(user => user.app_metadata?.role === 'admin');
+      const targetEmailExists = users.some(user => user.email?.toLowerCase() === ADMIN_EMAIL);
+      return json(res, 200, { setupAvailable: !hasAdmin && !targetEmailExists });
+    }
+
+    if (action === 'admin_bootstrap') {
+      res.setHeader('Cache-Control', 'no-store');
+      if (method !== 'POST') return json(res, 405, { error: 'Method Not Allowed' });
+      const body = await getBody(req);
+      const configuredSecret = process.env.ADMIN_BOOTSTRAP_SECRET;
+      if (!configuredSecret || configuredSecret.length < 32 || !safeSecretEquals(configuredSecret, body.bootstrapSecret)) {
+        return json(res, 403, { error: 'The setup secret is invalid or unavailable.' });
+      }
+
+      const password = typeof body.password === 'string' ? body.password : '';
+      if (password.length < 12 || password.length > 128) {
+        return json(res, 400, { error: 'Choose a password between 12 and 128 characters.' });
+      }
+
+      const { adminClient } = getSupabaseClients();
+      const users = await listAuthUsers(adminClient);
+      const hasAdmin = users.some(user => user.app_metadata?.role === 'admin');
+      const targetExists = users.some(user => user.email?.toLowerCase() === ADMIN_EMAIL);
+      if (hasAdmin || targetExists) return json(res, 409, { error: 'Initial administrator setup has already been completed.' });
+
+      const { error } = await adminClient.auth.admin.createUser({
+        email: ADMIN_EMAIL,
+        password,
+        email_confirm: true,
+        app_metadata: { role: 'admin' },
+        user_metadata: { name: 'Nexus Admin' }
+      });
+      if (error) return json(res, 400, { error: 'Supabase could not create the initial administrator.' });
+      return json(res, 201, { success: true, message: 'Administrator account created. Sign in with the new password.' });
+    }
+
+    if (action === 'admin_login') {
+      res.setHeader('Cache-Control', 'no-store');
+      if (method !== 'POST') return json(res, 405, { error: 'Method Not Allowed' });
+      const body = await getBody(req);
+      const email = typeof body.email === 'string' ? body.email.toLowerCase().trim() : '';
+      const password = typeof body.password === 'string' ? body.password : '';
+      if (email !== ADMIN_EMAIL || !password) return json(res, 401, { error: 'Invalid email or password.' });
+
+      const { authClient } = getSupabaseClients();
+      const { data, error } = await authClient.auth.signInWithPassword({ email, password });
+      if (error || !data.user || data.user.app_metadata?.role !== 'admin') {
+        return json(res, 401, { error: 'Invalid email or password.' });
+      }
+      setAdminCookies(res, data.session);
+      return json(res, 200, {
+        success: true,
+        user: { id: data.user.id, name: data.user.user_metadata?.name || 'Nexus Admin', email: data.user.email, role: 'admin' }
+      });
+    }
+
+    if (action === 'admin_session') {
+      res.setHeader('Cache-Control', 'no-store');
+      const session = await authenticateAdmin(req);
+      if (session.error) return json(res, session.error.status, { error: session.error.message });
+      const user = session.user;
+      return json(res, 200, {
+        user: { id: user.id, name: user.user_metadata?.name || 'Nexus Admin', email: user.email, role: 'admin' }
+      });
+    }
+
+    if (action === 'admin_refresh') {
+      if (method !== 'POST') return json(res, 405, { error: 'Method Not Allowed' });
+      const refreshToken = getCookie(req, 'nexusgrid_admin_refresh');
+      if (!refreshToken) {
+        clearAdminCookies(res);
+        return json(res, 401, { error: 'Session expired. Please sign in again.' });
+      }
+      const { authClient, adminClient } = getSupabaseClients();
+      const { data, error } = await authClient.auth.refreshSession({ refresh_token: refreshToken });
+      if (error || !data.session || !data.user || data.user.app_metadata?.role !== 'admin' || data.user.email?.toLowerCase() !== ADMIN_EMAIL) {
+        clearAdminCookies(res);
+        return json(res, 401, { error: 'Session expired. Please sign in again.' });
+      }
+      const { data: verified, error: verifyError } = await adminClient.auth.getUser(data.session.access_token);
+      if (verifyError || verified.user?.app_metadata?.role !== 'admin' || verified.user.email?.toLowerCase() !== ADMIN_EMAIL) {
+        clearAdminCookies(res);
+        return json(res, 401, { error: 'Session expired. Please sign in again.' });
+      }
+      setAdminCookies(res, data.session);
+      return json(res, 200, { success: true });
+    }
+
+    if (action === 'admin_logout') {
+      if (method === 'POST') {
+        const accessToken = getAdminAccessToken(req);
+        const refreshToken = getCookie(req, 'nexusgrid_admin_refresh');
+        if (accessToken && refreshToken) {
+          const { authClient } = getSupabaseClients();
+          await authClient.auth.setSession({ access_token: accessToken, refresh_token: refreshToken });
+          await authClient.auth.signOut({ scope: 'global' });
+        }
+      }
+      clearAdminCookies(res);
+      return json(res, 200, { success: true });
+    }
+
+    if (ADMIN_ACTIONS.has(action) || (action === 'submissions' && req.query.status)) {
+      const session = await authenticateAdmin(req);
+      if (session.error) return json(res, session.error.status, { error: session.error.message });
+      res.setHeader('Cache-Control', 'no-store');
+    }
+
     // ── 0. AUTH: LOGIN ────────────────────────────────────────────────────────
     if (action === 'login') {
       if (method !== 'POST') return json(res, 405, { error: 'Method Not Allowed' });
@@ -44,7 +253,7 @@ module.exports = async function handler(req, res) {
       const { rows } = await query('SELECT * FROM users WHERE LOWER(email) = $1 LIMIT 1', [email]);
       const user = rows[0];
 
-      if (!user) return json(res, 401, { error: 'Account not found. Only administrator-authorized users can log in.' });
+      if (!user || user.role === 'admin') return json(res, 401, { error: 'Invalid email or password.' });
       if (user.status === 'disabled') return json(res, 403, { error: 'This account has been disabled by the administrator.' });
 
       const valid = await bcrypt.compare(password, user.password_hash);
@@ -88,7 +297,8 @@ module.exports = async function handler(req, res) {
       const name = (body.name || '').trim();
       const email = (body.email || '').toLowerCase().trim();
       const password = (body.password || '').trim();
-      const role = ['admin', 'contributor'].includes(body.role) ? body.role : 'contributor';
+      const role = 'contributor';
+      if (body.role === 'admin') return json(res, 400, { error: 'Administrator accounts must be created through the secured Supabase setup flow.' });
 
       if (!name || !email || !password) return json(res, 400, { error: 'Name, email, and initial password are required.' });
       if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return json(res, 400, { error: 'Please provide a valid email address.' });
@@ -220,8 +430,14 @@ module.exports = async function handler(req, res) {
 
     // ── 3. GET SUBMISSIONS ────────────────────────────────────────────────────
     if (action === 'submissions') {
-      const email = (req.query.email || '').trim();
+      let email = (req.query.email || '').trim();
       const status = (req.query.status || '').trim();
+      if (!status) {
+        if (!email) return json(res, 400, { error: 'Email is required.' });
+        const contributor = await getContributorForEmail(req, email);
+        if (!contributor) return json(res, 401, { error: 'Authentication required.' });
+        email = contributor.email;
+      }
       let where = [], params = [], idx = 1;
       if (email) { where.push(`LOWER(contributor_email) = LOWER($${idx++})`); params.push(email); }
       if (status) { where.push(`status = $${idx++}`); params.push(status); }
@@ -328,7 +544,9 @@ module.exports = async function handler(req, res) {
     // ── 6. CONTRIBUTOR ACCOUNT STATS ─────────────────────────────────────────
     if (action === 'account') {
       const email = (req.query.email || '').toLowerCase().trim();
-      if (!email) return json(res, 200, { email: '', isAuthorized: false, rating: null, gradedCount: 0, pendingCount: 0, totalCount: 0, isVerified: false, security: null });
+      if (!email) return json(res, 400, { error: 'Email is required.' });
+      const contributor = await getContributorForEmail(req, email);
+      if (!contributor) return json(res, 401, { error: 'Authentication required.' });
 
       const [userRes, statsRes, verifiedRes, secRes, todayRes] = await Promise.all([
         query('SELECT id, name, status, role FROM users WHERE LOWER(email) = $1 LIMIT 1', [email]),
@@ -361,6 +579,8 @@ module.exports = async function handler(req, res) {
       const email = (body.email || '').toLowerCase().trim();
       const docType = (body.docType || 'passport').trim();
       if (!email) return json(res, 400, { error: 'Email is required.' });
+      const contributor = await getContributorForEmail(req, email);
+      if (!contributor) return json(res, 401, { error: 'Authentication required.' });
 
       await query('INSERT INTO verified_contributors (email, doc_type, verified_at) VALUES ($1,$2,NOW()) ON CONFLICT (email) DO UPDATE SET doc_type=EXCLUDED.doc_type, verified_at=NOW()', [email, docType]);
       return json(res, 200, { success: true, verified: true, email });

@@ -18,7 +18,7 @@ A full-stack RLHF (Reinforcement Learning from Human Feedback) contributor platf
 
 ```
 ├── index.php              # Contributor portal
-├── admin.php              # Admin panel
+├── admin.html              # Admin panel
 ├── api.php                # REST API (dual-DB compatible)
 ├── db.php                 # DB connection (PostgreSQL + MySQL auto-detect)
 ├── styles.css             # Global styles
@@ -56,11 +56,11 @@ See **[VERCEL_POSTGRES_GUIDE.md](VERCEL_POSTGRES_GUIDE.md)** for the full step-b
 
 | Role | Email | Password |
 |------|-------|----------|
-| Administrator | admin@nexusgrid.com | admin123 |
+| Administrator | admin@nexusgrid.com | Choose during one-time secure setup at `/admin.html` |
 | Contributor | alex@example.com | alex123 |
 | Contributor | festus@example.com | festus123 |
 
-> ⚠️ Change all default passwords before deploying to production!
+> Configure `ADMIN_BOOTSTRAP_SECRET` with a random value of at least 32 characters. Create the administrator once at `/admin.html`, set a password of at least 12 characters, and remove the bootstrap secret from the environment afterward.
 
 ---
 
