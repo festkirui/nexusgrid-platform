@@ -19,8 +19,12 @@ function getPool() {
     );
   }
 
+  // Supabase's injected URL carries `sslmode=require`, which pg treats as verify-full
+  // and overrides the `ssl` option below, failing on Supabase's certificate chain.
+  const connectionString = url.replace(/([?&])sslmode=[^&]*&?/, '$1').replace(/[?&]$/, '');
+
   _pool = new Pool({
-    connectionString: url,
+    connectionString,
     ssl: { rejectUnauthorized: false },
     max: 3,
     idleTimeoutMillis: 30000,
