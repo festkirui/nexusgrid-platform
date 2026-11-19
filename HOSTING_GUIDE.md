@@ -48,11 +48,11 @@ Upload the contents of this repository to your web server root (e.g. `public_htm
 
 | Portal | URL Path | Email | Password | Role |
 |:---|:---|:---|:---|:---|
-| **Admin Workspace** | `/admin.php` | `admin@nexusgrid.com` | `admin123` | Administrator |
+| **Admin Workspace** | `/admin.html` | `admin@nexusgrid.com` | Create during the one-time secure setup | Administrator |
 | **Contributor Portal** | `/index.php` (or `/`) | `alex@example.com` | `alex123` | Contributor |
 | **Contributor Portal** | `/index.php` (or `/`) | `festus@example.com` | `festus123` | Contributor |
 
-> **Security Tip:** Immediately after hosting, log in as `admin@nexusgrid.com`, go to **Users & Logins**, and update passwords or add your own administrative account.
+> **Administrator setup:** Configure `ADMIN_BOOTSTRAP_SECRET` as a random secret of at least 32 characters. On `/admin.html`, use it once to create the Supabase Auth administrator and choose a password of at least 12 characters. Remove the bootstrap secret from the project environment after setup.
 
 ---
 

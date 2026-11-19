@@ -11,7 +11,7 @@ This guide explains how to host NexusGrid on **Vercel** with a cloud **PostgreSQ
 │                   Vercel Platform                      │
 │                                                        │
 │  ├── /index.php   → Serverless Contributor Portal      │
-│  ├── /admin.php   → Serverless Admin Workspace         │
+│  ├── /admin.html   → Serverless Admin Workspace         │
 │  ├── /api.php     → Serverless JSON REST API           │
 │  └── /styles.css  → Global CDN Edge Static Assets      │
 └──────────────────────────┬─────────────────────────────┘
@@ -66,7 +66,7 @@ NexusGrid includes a ready-to-run PostgreSQL seed file: **`database_postgres.sql
 3. Copy its entire content, paste it into the SQL Editor, and click **Run** / **Execute**.
 4. This instantly creates all 7 tables and seeds:
    - ✅ **All 110 RLHF enterprise dilemma workstreams**
-   - ✅ **Default Administrator:** `admin@nexusgrid.com` / `admin123`
+   - ✅ **Administrator:** Created once through the secure setup form at `/admin.html` using Supabase Auth
    - ✅ **Default Contributors:** `alex@example.com` / `alex123` & `festus@example.com` / `festus123`
    - ✅ **All alignment streams & compliance protocols**
 
@@ -117,6 +117,10 @@ When prompted, select your project and link your Postgres database.
 | `APP_ENV` | Environment type | `production` |
 | `APP_DEBUG` | Path disclosure guard | `false` |
 | `MAIL_FROM` | Sender address for grade emails | `noreply@yourdomain.com` |
+| `SUPABASE_URL` | Supabase project URL used by administrator Auth | Set by the Supabase integration |
+| `SUPABASE_ANON_KEY` | Public Auth client key | Set by the Supabase integration |
+| `SUPABASE_SERVICE_ROLE_KEY` | Server-only key for user creation and admin verification; never expose in browser code | Set by the Supabase integration |
+| `ADMIN_BOOTSTRAP_SECRET` | One-time setup secret (32+ random characters); remove after creating the administrator | Set as a Vercel project variable |
 
 ---
 
@@ -126,7 +130,7 @@ Once deployed on Vercel, access your site at `https://your-project.vercel.app/`:
 
 | Portal | URL Path | Login Email | Login Password | Role |
 |:---|:---|:---|:---|:---|
-| **Admin Workspace** | `/admin.php` | `admin@nexusgrid.com` | `admin123` | Administrator |
+| **Admin Workspace** | `/admin.html` | `admin@nexusgrid.com` | Set during one-time secure setup | Administrator |
 | **Contributor Portal** | `/index.php` (or `/`) | `alex@example.com` | `alex123` | Contributor |
 | **Contributor Portal** | `/index.php` (or `/`) | `festus@example.com` | `festus123` | Contributor |
 

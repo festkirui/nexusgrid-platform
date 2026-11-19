@@ -1,13 +1,7 @@
 ﻿// NexusGrid Admin Workspace Controller (admin.js)
-// Dedicated logic for admin.php connecting with /api & WampServer MySQL
+// Admin dashboard actions use protected API routes and Supabase Auth.
 
-let adminAuthToken = localStorage.getItem('nexusgrid_auth_token') || localStorage.getItem('givegrid_auth_token') || null;
 let currentAdminUser = null;
-try {
-  currentAdminUser = JSON.parse(localStorage.getItem('nexusgrid_auth_user') || localStorage.getItem('givegrid_auth_user'));
-} catch (e) {
-  currentAdminUser = null;
-}
 
 const toast = document.querySelector('#toast');
 let toastTimer;
@@ -32,6 +26,70 @@ function showToast(message) {
   toastTimer = setTimeout(() => toast.classList.remove('show'), 2800);
 }
 
+function clearAdminSession() {
+  currentAdminUser = null;
+}
+
+async function refreshAdminSession() {
+  try {
+    const response = await window.fetch('/api?action=admin_refresh', {
+      method: 'POST',
+      credentials: 'same-origin'
+    });
+    return response.ok;
+  } catch {
+    return false;
+  }
+}
+
+async function adminFetch(url, options = {}) {
+  const send = () => window.fetch(url, { ...options, credentials: 'same-origin' });
+  let response = await send();
+  const isAuthFlow = String(url).includes('admin_login') || String(url).includes('admin_bootstrap') || String(url).includes('admin_refresh');
+  if (response.status === 401 && !isAuthFlow) {
+    if (await refreshAdminSession()) {
+      response = await send();
+    } else {
+      clearAdminSession();
+      updateAdminUI();
+    }
+  }
+  return response;
+}
+
+async function updateBootstrapVisibility() {
+  const panel = document.querySelector('#adminBootstrapPanel');
+  if (!panel) return;
+  const status = document.querySelector('#adminSetupStatus');
+  const controls = panel.querySelectorAll('input, button');
+
+  try {
+    const response = await window.fetch('/api?action=admin_bootstrap_status');
+    const data = await response.json();
+    if (!response.ok) throw new Error('Setup status unavailable');
+    panel.style.display = data.setupAvailable ? 'block' : 'none';
+    controls.forEach(control => { control.disabled = false; });
+  } catch {
+    panel.style.display = 'block';
+    if (status) status.textContent = 'Could not reach the Supabase setup status endpoint. The project API and Supabase environment must be available before creating the administrator.';
+    controls.forEach(control => { control.disabled = true; });
+  }
+}
+
+async function restoreAdminSession() {
+  try {
+    const response = await adminFetch('/api?action=admin_session');
+    const data = await response.json();
+    if (!response.ok || data.user?.role !== 'admin') throw new Error('Invalid session');
+    currentAdminUser = data.user;
+  } catch {
+    clearAdminSession();
+  }
+
+  updateAdminUI();
+  await updateBootstrapVisibility();
+}
+
 // Score Label Helper
 function getScoreLabel(score) {
   if (score >= 4.8) return 'Very Excellent ★';
@@ -54,7 +112,7 @@ function updateAdminUI() {
   const nameDisplay = document.querySelector('#adminNameDisplay');
 
   // Verify that user is an admin
-  const isAdmin = currentAdminUser && adminAuthToken && currentAdminUser.role === 'admin';
+  const isAdmin = currentAdminUser && currentAdminUser.role === 'admin';
 
   if (isAdmin) {
     if (gate) gate.style.display = 'none';
@@ -71,7 +129,7 @@ function updateAdminUI() {
   }
 }
 
-// Admin Login Form ("authorize me" button)
+// Admin Login Form (Supabase Auth)
 const adminLoginForm = document.querySelector('#adminLoginForm');
 if (adminLoginForm) {
   adminLoginForm.addEventListener('submit', async event => {
@@ -82,37 +140,30 @@ if (adminLoginForm) {
 
     if (submitBtn) {
       submitBtn.disabled = true;
-      submitBtn.innerHTML = 'authorizing...';
+      submitBtn.textContent = 'Authorizing…';
     }
 
     try {
-      const res = await fetch('/api?action=login', {
+      const res = await window.fetch('/api?action=admin_login', {
         method: 'POST',
+        credentials: 'same-origin',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email, password })
       });
-
       const data = await res.json();
       if (!res.ok) {
-        showToast(data.error || 'Authorization failed.');
+        showToast(data.error || 'Invalid email or password.');
         return;
       }
 
-      if (data.user.role !== 'admin') {
-        showToast('Access denied: this account does not have administrator privileges.');
-        return;
-      }
-
-      adminAuthToken = data.token;
       currentAdminUser = data.user;
-      localStorage.setItem('nexusgrid_auth_token', adminAuthToken);
-      localStorage.setItem('nexusgrid_auth_user', JSON.stringify(currentAdminUser));
-
       updateAdminUI();
+      await updateBootstrapVisibility();
       showToast(`Welcome Administrator, ${data.user.name}!`);
+      adminLoginForm.reset();
     } catch (err) {
       console.error(err);
-      showToast('Error communicating with database.');
+      showToast('Could not complete administrator sign-in.');
     } finally {
       if (submitBtn) {
         submitBtn.disabled = false;
@@ -122,21 +173,51 @@ if (adminLoginForm) {
   });
 }
 
+const adminBootstrapForm = document.querySelector('#adminBootstrapForm');
+if (adminBootstrapForm) {
+  adminBootstrapForm.addEventListener('submit', async event => {
+    event.preventDefault();
+    const submitBtn = document.querySelector('#adminBootstrapSubmitBtn');
+    const bootstrapSecret = document.querySelector('#adminBootstrapSecret').value;
+    const password = document.querySelector('#adminBootstrapPassword').value;
+    submitBtn.disabled = true;
+    submitBtn.textContent = 'Creating account…';
+
+    try {
+      const response = await window.fetch('/api?action=admin_bootstrap', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ bootstrapSecret, password })
+      });
+      const data = await response.json();
+      if (!response.ok) {
+        showToast(data.error || 'Initial administrator setup failed.');
+        return;
+      }
+
+      adminBootstrapForm.reset();
+      document.querySelector('#adminSetupStatus').textContent = 'Admin account created. Sign in with the new password above.';
+      document.querySelector('#adminEmailInput').value = 'admin@nexusgrid.com';
+      document.querySelector('#adminPasswordInput').focus();
+      await updateBootstrapVisibility();
+      showToast('Administrator account created.');
+    } catch (err) {
+      console.error(err);
+      showToast('Could not complete administrator setup.');
+    } finally {
+      submitBtn.disabled = false;
+      submitBtn.textContent = 'Create admin account';
+    }
+  });
+}
+
 // Admin Logout
 document.querySelector('#adminLogoutBtn')?.addEventListener('click', async () => {
   try {
-    if (adminAuthToken) {
-      await fetch(`/api?action=logout&token=${encodeURIComponent(adminAuthToken)}`);
-    }
-  } catch (e) {}
+    await adminFetch('/api?action=admin_logout', { method: 'POST' });
+  } catch {}
 
-  adminAuthToken = null;
-  currentAdminUser = null;
-  localStorage.removeItem('nexusgrid_auth_token');
-  localStorage.removeItem('nexusgrid_auth_user');
-  localStorage.removeItem('givegrid_auth_token');
-  localStorage.removeItem('givegrid_auth_user');
-
+  clearAdminSession();
   updateAdminUI();
   showToast('Admin logged out.');
 });
@@ -153,10 +234,10 @@ document.querySelector('#adminLoginBtn')?.addEventListener('click', () => {
 async function loadAdminData() {
   try {
     const [subRes, secRes, userRes, statsRes] = await Promise.all([
-      fetch('/api?action=submissions&status=pending'),
-      fetch('/api?action=security'),
-      fetch('/api?action=admin_list_users'),
-      fetch('/api?action=admin_stats')
+      adminFetch('/api?action=submissions&status=pending'),
+      adminFetch('/api?action=security'),
+      adminFetch('/api?action=admin_list_users'),
+      adminFetch('/api?action=admin_stats')
     ]);
 
     const pending = await subRes.json();
@@ -358,7 +439,7 @@ function initAdminActions() {
     const role = document.querySelector('#newUserRole').value;
 
     try {
-      const res = await fetch('/api?action=admin_add_user', {
+      const res = await adminFetch('/api?action=admin_add_user', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ name, email, password, role })
@@ -400,7 +481,7 @@ function initAdminActions() {
 
     const userId = button.dataset.userId;
     try {
-      const res = await fetch('/api?action=admin_toggle_user', {
+      const res = await adminFetch('/api?action=admin_toggle_user', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ id: userId, actionType: 'toggle' })
@@ -452,7 +533,7 @@ function initAdminActions() {
     };
 
     try {
-      const res = await fetch('/api?action=grade', {
+      const res = await adminFetch('/api?action=grade', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload)
@@ -488,7 +569,7 @@ function initAdminActions() {
     };
 
     try {
-      const res = await fetch('/api?action=create_task', {
+      const res = await adminFetch('/api?action=create_task', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload)
@@ -518,7 +599,7 @@ function initAdminActions() {
     };
 
     try {
-      const res = await fetch('/api?action=security_flag', {
+      const res = await adminFetch('/api?action=security_flag', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload)
@@ -543,7 +624,7 @@ function initAdminActions() {
     const email = button.dataset.email;
 
     try {
-      const res = await fetch('/api?action=security_action', {
+      const res = await adminFetch('/api?action=security_action', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email, actionType })
@@ -573,7 +654,7 @@ function initAdminActions() {
     if (statusEl) statusEl.style.display = 'none';
 
     try {
-      const res = await fetch('/api?action=admin_notify', {
+      const res = await adminFetch('/api?action=admin_notify', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ to_email: toEmail, subject, message, send_all: false })
@@ -615,7 +696,7 @@ function initAdminActions() {
     btn.textContent = 'Sending to all...';
 
     try {
-      const res = await fetch('/api?action=admin_notify', {
+      const res = await adminFetch('/api?action=admin_notify', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ subject, message, send_all: true })
@@ -654,6 +735,6 @@ function renderEmailLog(to, subject, sent) {
 
 document.addEventListener('DOMContentLoaded', () => {
   initAdminActions();
-  updateAdminUI();
+  restoreAdminSession();
 });
 

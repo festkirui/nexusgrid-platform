@@ -10,7 +10,7 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Manrope:wght@400;500;600;700;800&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="styles.css?v=2.4.0">
-  <script src="admin.js?v=2.4.0" defer></script>
+  <script src="admin.js?v=2.4.1" defer></script>
 </head>
 <body class="admin-page">
   <!-- Admin Navigation Topbar -->
@@ -52,6 +52,21 @@
         </label>
         <button class="button button-bright" type="submit" id="adminSubmitAuthBtn" style="margin-top:6px;">authorize me <span>→</span></button>
       </form>
+
+      <section id="adminBootstrapPanel" style="display:none; width:min(420px, 100%); margin-top:28px; padding-top:24px; border-top:1px solid #354047; text-align:left;">
+        <h3 style="margin:0 0 8px;">Create the first administrator</h3>
+        <p id="adminSetupStatus" style="margin:0 0 16px;">One-time setup for admin@nexusgrid.com. The setup secret is used only to authorize this first account.</p>
+        <form id="adminBootstrapForm" style="display:grid; gap:14px;">
+          <label style="font-size:10px; color:#aebbb5; display:grid; gap:6px;">One-time setup secret
+            <input type="password" id="adminBootstrapSecret" required minlength="32" autocomplete="off" placeholder="Paste the project setup secret" style="width:100%; padding:10px 12px; background:#0b1115; border:1px solid #354047; color:#fff; border-radius:3px;">
+          </label>
+          <label style="font-size:10px; color:#aebbb5; display:grid; gap:6px;">New admin password
+            <input type="password" id="adminBootstrapPassword" required minlength="12" maxlength="128" autocomplete="new-password" placeholder="Use at least 12 characters" style="width:100%; padding:10px 12px; background:#0b1115; border:1px solid #354047; color:#fff; border-radius:3px;">
+          </label>
+          <button class="button button-bright" type="submit" id="adminBootstrapSubmitBtn">Create admin account</button>
+        </form>
+        <small style="display:block; margin-top:12px; color:#aebbb5;">After creating the account, remove ADMIN_BOOTSTRAP_SECRET from the project environment.</small>
+      </section>
     </div>
 
     <!-- Protected Admin Dashboard (Visible only to authorized Admins) -->
@@ -126,7 +141,6 @@
             <label>Account Role
               <select name="role" id="newUserRole">
                 <option value="contributor">Contributor (Access tasks, account &amp; rating)</option>
-                <option value="admin">Administrator (Full administrative access)</option>
               </select>
             </label>
             <button class="button button-bright" type="submit">Authorize &amp; Save User <span>ï¼‹</span></button>
