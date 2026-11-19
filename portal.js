@@ -1,4 +1,4 @@
-﻿// NexusGrid Contributor / User Portal Controller (app.js)
+﻿// NexusGrid Contributor / User Portal Controller (portal.js)
 // Dedicated logic for index.php connecting with /api & WampServer MySQL
 
 let tasks = [];
