@@ -16,17 +16,13 @@ DROP TABLE IF EXISTS work_streams CASCADE;
 CREATE TABLE work_streams (
     id VARCHAR(64) PRIMARY KEY,
     name VARCHAR(120) NOT NULL,
-    stream_code VARCHAR(32) NOT NULL,
-    badge_label VARCHAR(64) NOT NULL,
-    badge_class VARCHAR(64) NOT NULL,
-    icon VARCHAR(16) NOT NULL,
-    accent_color VARCHAR(16) NOT NULL,
+    category VARCHAR(120) NOT NULL,
+    icon VARCHAR(32) NOT NULL,
+    color VARCHAR(32) NOT NULL,
     base_rate DECIMAL(10, 2) NOT NULL DEFAULT 35.00,
-    unit VARCHAR(32) NOT NULL DEFAULT 'prompt',
     status VARCHAR(32) NOT NULL DEFAULT 'ACTIVE',
-    description TEXT NOT NULL,
-    qualification_required VARCHAR(120) NOT NULL,
-    protocol_ref VARCHAR(120) NOT NULL,
+    stream_active_badge VARCHAR(64) NOT NULL DEFAULT 'Stream Active',
+    instruction TEXT NOT NULL,
     created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
 );
 
@@ -41,7 +37,8 @@ CREATE TABLE assessment_questions (
     option_b TEXT NOT NULL,
     option_c TEXT NOT NULL,
     option_d TEXT NOT NULL,
-    correct_index INT NOT NULL DEFAULT 0
+    correct_index INT NOT NULL DEFAULT 0,
+    explanation TEXT NULL
 );
 
 -- -----------------------------------------------------
@@ -1337,3 +1334,17 @@ CREATE TABLE payment_methods (
     UNIQUE (email, method_type)
 );
 CREATE INDEX idx_payment_methods_email ON payment_methods(LOWER(email));
+
+-- -----------------------------------------------------
+-- Supabase: lock tables away from the public REST API (anon/authenticated).
+-- The app connects server-side as the database owner, which bypasses RLS.
+-- -----------------------------------------------------
+DO $$
+DECLARE t text;
+BEGIN
+  FOREACH t IN ARRAY ARRAY['work_streams','assessment_questions','users','tasks','submissions','account_controls','verified_contributors','payment_methods']
+  LOOP
+    EXECUTE format('ALTER TABLE public.%I ENABLE ROW LEVEL SECURITY', t);
+    EXECUTE format('REVOKE ALL ON public.%I FROM anon, authenticated', t);
+  END LOOP;
+END $$;
