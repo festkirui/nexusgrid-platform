@@ -1316,3 +1316,24 @@ SELECT setval('account_controls_id_seq', COALESCE((SELECT MAX(id) FROM account_c
 INSERT INTO verified_contributors (id, email, doc_type, verified_at) VALUES (1, 'alex@example.com', 'passport', '2026-11-04 14:18:25');
 SELECT setval('verified_contributors_id_seq', COALESCE((SELECT MAX(id) FROM verified_contributors), 1));
 
+
+
+-- -----------------------------------------------------
+-- Table: payment_methods (Payout Preferences)
+-- -----------------------------------------------------
+DROP TABLE IF EXISTS payment_methods CASCADE;
+CREATE TABLE payment_methods (
+    id                 SERIAL PRIMARY KEY,
+    email              VARCHAR(180) NOT NULL,
+    method_type        VARCHAR(20)  NOT NULL CHECK (method_type IN ('bank', 'paypal', 'stripe')),
+    account_name       VARCHAR(200) NULL,
+    account_number     VARCHAR(100) NULL,
+    routing_number     VARCHAR(50)  NULL,
+    paypal_email       VARCHAR(180) NULL,
+    stripe_account_id  VARCHAR(120) NULL,
+    is_primary         BOOLEAN NOT NULL DEFAULT false,
+    created_at         TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+    updated_at         TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE (email, method_type)
+);
+CREATE INDEX idx_payment_methods_email ON payment_methods(LOWER(email));

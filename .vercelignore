@@ -1,9 +1,19 @@
-# .vercelignore — files excluded from Vercel deployment
+# .vercelignore — excluded from Vercel deployment
+
+# PHP legacy files (replaced by Node.js)
 *.php
-*.zip
+db.php
+api.php
+
+# Local-only files
+server.js
 database.sql
 schema.sql
 HOSTING_GUIDE.md
-export_to_postgres.php
+*.zip
+*.log
+
+# Dev
 node_modules
 .git
+public/

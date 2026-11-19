@@ -712,6 +712,9 @@ async function renderAccount() {
     const subs = await subRes.json();
     userAccountData = acc;
 
+    // Load payment methods for this user
+    loadPaymentMethods(email);
+
     // Verification Badge
     const badge = document.querySelector('#verificationBadge');
     if (badge) {
@@ -898,9 +901,180 @@ function initEventListeners() {
 // Initial Boot
 async function startApp() {
   initEventListeners();
+  initPaymentTabs();
+  initPaymentForms();
   updateAuthUI();
   await fetchTasks();
 }
 
 document.addEventListener('DOMContentLoaded', startApp);
 
+
+// =============================================================================
+// PAYMENT METHODS
+// =============================================================================
+
+function initPaymentTabs() {
+  const tabs = document.querySelectorAll('.pay-tab');
+  if (!tabs.length) return;
+  tabs.forEach(tab => {
+    tab.addEventListener('click', () => {
+      tabs.forEach(t => t.classList.remove('active'));
+      tab.classList.add('active');
+      document.querySelectorAll('.pay-panel').forEach(p => p.style.display = 'none');
+      const panel = document.getElementById('payPanel-' + tab.dataset.tab);
+      if (panel) panel.style.display = 'block';
+    });
+  });
+}
+
+async function loadPaymentMethods(email) {
+  if (!email) return;
+  try {
+    const r = await fetch(`/api?action=get_payment_methods&email=${encodeURIComponent(email)}`);
+    const methods = await r.json();
+    if (!Array.isArray(methods)) return;
+
+    methods.forEach(m => {
+      if (m.method_type === 'bank') {
+        if (m.account_name)   document.getElementById('bankAccountName').value   = m.account_name;
+        if (m.routing_number) document.getElementById('bankRoutingNumber').value  = m.routing_number;
+        if (m.account_number) document.getElementById('bankAccountNumber').value  = m.account_number;
+        if (m.is_primary)     document.getElementById('bankIsPrimary').checked    = true;
+        showPaySaved('bank', m);
+        const btn = document.getElementById('removeBankBtn');
+        if (btn) btn.style.display = 'inline-flex';
+      }
+      if (m.method_type === 'paypal') {
+        if (m.paypal_email)   document.getElementById('paypalEmail').value        = m.paypal_email;
+        if (m.is_primary)     document.getElementById('paypalIsPrimary').checked  = true;
+        showPaySaved('paypal', m);
+        const btn = document.getElementById('removePaypalBtn');
+        if (btn) btn.style.display = 'inline-flex';
+      }
+      if (m.method_type === 'stripe') {
+        if (m.stripe_account_id) document.getElementById('stripeAccountId').value = m.stripe_account_id;
+        if (m.is_primary)        document.getElementById('stripeIsPrimary').checked = true;
+        showPaySaved('stripe', m);
+        const btn = document.getElementById('removeStripeBtn');
+        if (btn) btn.style.display = 'inline-flex';
+      }
+    });
+  } catch (e) {
+    console.warn('[Payment] load error', e);
+  }
+}
+
+function showPaySaved(type, m) {
+  const statusEl = document.getElementById(type + 'Status');
+  if (!statusEl) return;
+  let detail = '';
+  if (type === 'bank') detail = m.account_name ? `${m.account_name} · ****${(m.account_number||'').slice(-4)}` : '';
+  if (type === 'paypal') detail = m.paypal_email || '';
+  if (type === 'stripe') detail = m.stripe_account_id || '';
+  statusEl.className = 'pay-status success';
+  statusEl.innerHTML = `<span class="pay-saved-badge">✓ SAVED${m.is_primary ? ' · PRIMARY' : ''}</span>${escapeHtml(detail)}`;
+}
+
+async function savePaymentMethod(type, payload) {
+  const statusEl = document.getElementById(type + 'Status');
+  if (statusEl) { statusEl.className = 'pay-status'; statusEl.textContent = 'Saving…'; }
+
+  const email = currentUser?.email || document.getElementById('accountEmail')?.value || '';
+  if (!email) {
+    if (statusEl) { statusEl.className = 'pay-status error'; statusEl.textContent = 'You must be logged in to save payment methods.'; }
+    return;
+  }
+
+  try {
+    const r = await fetch('/api?action=save_payment_method', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email, method_type: type, ...payload })
+    });
+    const data = await r.json();
+    if (data.success) {
+      showPaySaved(type, { ...payload, method_type: type });
+      showToast(`${type.charAt(0).toUpperCase() + type.slice(1)} payout details saved!`);
+      const removeBtn = document.getElementById('remove' + type.charAt(0).toUpperCase() + type.slice(1) + 'Btn');
+      if (removeBtn) removeBtn.style.display = 'inline-flex';
+    } else {
+      if (statusEl) { statusEl.className = 'pay-status error'; statusEl.textContent = data.error || 'Failed to save.'; }
+    }
+  } catch (e) {
+    if (statusEl) { statusEl.className = 'pay-status error'; statusEl.textContent = 'Network error. Please try again.'; }
+  }
+}
+
+async function removePaymentMethod(type) {
+  const email = currentUser?.email || document.getElementById('accountEmail')?.value || '';
+  if (!email) return;
+  if (!confirm(`Remove your ${type} payout method?`)) return;
+
+  try {
+    const r = await fetch('/api?action=delete_payment_method', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email, method_type: type })
+    });
+    const data = await r.json();
+    if (data.success) {
+      const statusEl = document.getElementById(type + 'Status');
+      if (statusEl) { statusEl.className = 'pay-status'; statusEl.textContent = ''; }
+      const removeBtn = document.getElementById('remove' + type.charAt(0).toUpperCase() + type.slice(1) + 'Btn');
+      if (removeBtn) removeBtn.style.display = 'none';
+      // Reset form fields
+      if (type === 'bank') { document.getElementById('bankAccountName').value = ''; document.getElementById('bankRoutingNumber').value = ''; document.getElementById('bankAccountNumber').value = ''; document.getElementById('bankIsPrimary').checked = false; }
+      if (type === 'paypal') { document.getElementById('paypalEmail').value = ''; document.getElementById('paypalIsPrimary').checked = false; }
+      if (type === 'stripe') { document.getElementById('stripeAccountId').value = ''; document.getElementById('stripeIsPrimary').checked = false; }
+      showToast(`${type} payout method removed.`);
+    }
+  } catch (e) {
+    showToast('Error removing payment method. Please try again.');
+  }
+}
+
+function initPaymentForms() {
+  // Bank form
+  const bankForm = document.getElementById('bankForm');
+  if (bankForm) {
+    bankForm.addEventListener('submit', (e) => {
+      e.preventDefault();
+      const name = document.getElementById('bankAccountName').value.trim();
+      const routing = document.getElementById('bankRoutingNumber').value.trim();
+      const account = document.getElementById('bankAccountNumber').value.trim();
+      const primary = document.getElementById('bankIsPrimary').checked;
+      if (!name || !account) { const s = document.getElementById('bankStatus'); if(s){s.className='pay-status error';s.textContent='Account holder name and account number are required.';} return; }
+      savePaymentMethod('bank', { account_name: name, routing_number: routing, account_number: account, is_primary: primary });
+    });
+  }
+
+  // PayPal form
+  const paypalForm = document.getElementById('paypalForm');
+  if (paypalForm) {
+    paypalForm.addEventListener('submit', (e) => {
+      e.preventDefault();
+      const email = document.getElementById('paypalEmail').value.trim();
+      const primary = document.getElementById('paypalIsPrimary').checked;
+      if (!email) { const s = document.getElementById('paypalStatus'); if(s){s.className='pay-status error';s.textContent='PayPal email is required.';} return; }
+      savePaymentMethod('paypal', { paypal_email: email, is_primary: primary });
+    });
+  }
+
+  // Stripe form
+  const stripeForm = document.getElementById('stripeForm');
+  if (stripeForm) {
+    stripeForm.addEventListener('submit', (e) => {
+      e.preventDefault();
+      const acct = document.getElementById('stripeAccountId').value.trim();
+      const primary = document.getElementById('stripeIsPrimary').checked;
+      if (!acct || !acct.startsWith('acct_')) { const s = document.getElementById('stripeStatus'); if(s){s.className='pay-status error';s.textContent='Enter a valid Stripe account ID (starts with acct_).';} return; }
+      savePaymentMethod('stripe', { stripe_account_id: acct, is_primary: primary });
+    });
+  }
+
+  // Remove buttons
+  document.querySelectorAll('.pay-remove-btn').forEach(btn => {
+    btn.addEventListener('click', () => removePaymentMethod(btn.dataset.method));
+  });
+}

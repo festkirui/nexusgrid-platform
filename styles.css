@@ -2801,3 +2801,148 @@ h2 {
     padding: 40px 16px 52px;
   }
 }
+
+/* ============================================================
+   PAYMENT METHODS SECTION
+   ============================================================ */
+
+.payment-section {
+  border-top: 1px solid #1e2d3a;
+  padding-top: 36px;
+}
+
+.payment-tabs {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.pay-tab {
+  background: #0d1b26;
+  border: 1px solid #1e2d3a;
+  color: #94a3b8;
+  padding: 9px 20px;
+  border-radius: 4px;
+  font-size: 13px;
+  font-family: var(--mono);
+  cursor: pointer;
+  letter-spacing: .02em;
+  transition: all .2s;
+}
+
+.pay-tab:hover {
+  border-color: #00dfa2;
+  color: #fff;
+}
+
+.pay-tab.active {
+  background: #00dfa215;
+  border-color: #00dfa2;
+  color: #00dfa2;
+}
+
+.pay-panel {
+  background: #0b1520;
+  border: 1px solid #1e2d3a;
+  border-radius: 8px;
+  padding: 28px 24px;
+}
+
+.payment-form {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+}
+
+.pay-form-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+  margin-bottom: 20px;
+}
+
+.pay-form-grid label {
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+  font-size: 11px;
+  color: #7f9ba8;
+  letter-spacing: .06em;
+  text-transform: uppercase;
+}
+
+.pay-form-grid label.pay-primary-row {
+  flex-direction: row;
+  align-items: center;
+  gap: 10px;
+  color: #94a3b8;
+  text-transform: none;
+  letter-spacing: 0;
+  font-size: 13px;
+  grid-column: 1 / -1;
+  margin-top: 4px;
+}
+
+.pay-form-grid label.pay-primary-row input[type="checkbox"] {
+  width: 16px;
+  height: 16px;
+  accent-color: #00dfa2;
+  flex-shrink: 0;
+}
+
+.pay-form-grid input[type="text"],
+.pay-form-grid input[type="email"] {
+  background: #0d1b26;
+  border: 1px solid #1e2d3a;
+  color: #e2e8f0;
+  padding: 10px 12px;
+  border-radius: 4px;
+  font-size: 14px;
+  font-family: var(--mono);
+  transition: border-color .2s;
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.pay-form-grid input:focus {
+  outline: none;
+  border-color: #00dfa2;
+}
+
+.pay-actions {
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+  align-items: center;
+}
+
+.pay-status {
+  margin-top: 12px;
+  font-size: 13px;
+  font-family: var(--mono);
+  min-height: 20px;
+}
+
+.pay-status.success { color: #00dfa2; }
+.pay-status.error   { color: #ff8787; }
+
+.pay-saved-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: #00dfa215;
+  border: 1px solid #00dfa250;
+  color: #00dfa2;
+  font-size: 11px;
+  font-family: var(--mono);
+  padding: 4px 10px;
+  border-radius: 20px;
+  margin-bottom: 14px;
+  letter-spacing: .04em;
+}
+
+@media (max-width: 700px) {
+  .pay-form-grid {
+    grid-template-columns: 1fr;
+  }
+}

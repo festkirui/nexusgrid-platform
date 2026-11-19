@@ -227,6 +227,61 @@ $appVersion = '2.4.0';
             </div>
             <div id="mySubmissions" class="submission-rows"></div>
           </div>
+
+          <!-- PAYMENT METHODS SECTION -->
+          <div class="payment-section" style="margin-top:36px;">
+            <div class="list-heading" style="margin-bottom:20px;">
+              <h3>Payout Methods</h3>
+              <span style="color:#94a3b8;font-size:13px;">Add or update where you receive payments</span>
+            </div>
+            <div class="payment-tabs" id="paymentTabs" role="tablist" style="display:flex;gap:10px;margin-bottom:22px;flex-wrap:wrap;">
+              <button class="pay-tab active" data-tab="bank" role="tab">🏦 Bank Transfer</button>
+              <button class="pay-tab" data-tab="paypal" role="tab">🅿 PayPal</button>
+              <button class="pay-tab" data-tab="stripe" role="tab">⚡ Stripe</button>
+            </div>
+            <div class="pay-panel" id="payPanel-bank">
+              <form id="bankForm" class="payment-form">
+                <div class="pay-form-grid">
+                  <label><span>Account Holder Name</span><input type="text" id="bankAccountName" placeholder="e.g. John Doe" autocomplete="name"></label>
+                  <label><span>Routing Number (ABA)</span><input type="text" id="bankRoutingNumber" placeholder="e.g. 021000021" maxlength="20"></label>
+                  <label><span>Account Number</span><input type="text" id="bankAccountNumber" placeholder="e.g. 123456789012" maxlength="30"></label>
+                  <label class="pay-primary-row"><input type="checkbox" id="bankIsPrimary"><span>Set as primary payout method</span></label>
+                </div>
+                <div class="pay-actions">
+                  <button class="button button-bright" type="submit" id="saveBankBtn">Save Bank Details <span>→</span></button>
+                  <button class="button button-outline pay-remove-btn" type="button" data-method="bank" style="display:none;" id="removeBankBtn">Remove</button>
+                </div>
+                <div id="bankStatus" class="pay-status"></div>
+              </form>
+            </div>
+            <div class="pay-panel" id="payPanel-paypal" style="display:none;">
+              <form id="paypalForm" class="payment-form">
+                <div class="pay-form-grid">
+                  <label><span>PayPal Email Address</span><input type="email" id="paypalEmail" placeholder="your-paypal@email.com" autocomplete="email"></label>
+                  <label class="pay-primary-row"><input type="checkbox" id="paypalIsPrimary"><span>Set as primary payout method</span></label>
+                </div>
+                <div class="pay-actions">
+                  <button class="button button-bright" type="submit" id="savePaypalBtn">Save PayPal <span>→</span></button>
+                  <button class="button button-outline pay-remove-btn" type="button" data-method="paypal" style="display:none;" id="removePaypalBtn">Remove</button>
+                </div>
+                <div id="paypalStatus" class="pay-status"></div>
+              </form>
+            </div>
+            <div class="pay-panel" id="payPanel-stripe" style="display:none;">
+              <form id="stripeForm" class="payment-form">
+                <div class="pay-form-grid">
+                  <label><span>Stripe Connected Account ID</span><input type="text" id="stripeAccountId" placeholder="acct_1A2B3C4D5E6F7G8H" maxlength="40"></label>
+                  <label class="pay-primary-row"><input type="checkbox" id="stripeIsPrimary"><span>Set as primary payout method</span></label>
+                </div>
+                <div class="pay-actions">
+                  <button class="button button-bright" type="submit" id="saveStripeBtn">Save Stripe Account <span>→</span></button>
+                  <button class="button button-outline pay-remove-btn" type="button" data-method="stripe" style="display:none;" id="removeStripeBtn">Remove</button>
+                </div>
+                <div id="stripeStatus" class="pay-status"></div>
+              </form>
+            </div>
+          </div><!-- end payment-section -->
+
         </div> <!-- End contributorDashboard -->
       </div>
     </section>

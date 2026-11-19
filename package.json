@@ -1,7 +1,7 @@
 {
   "name": "nexusgrid-platform",
-  "version": "2.4.0",
-  "description": "NexusGrid — RLHF Contributor Platform (Node.js + PostgreSQL, Vercel-ready)",
+  "version": "3.0.0",
+  "description": "NexusGrid — RLHF Contributor Platform | Node.js + Supabase + Vercel",
   "private": true,
   "engines": {
     "node": ">=18.x"
