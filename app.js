@@ -235,7 +235,7 @@ function getStreamMeta(streamId) {
         pill: 'RLHF STREAM',
         badgeClass: 'stream-rlhf',
         color: '#818cf8',
-        icon: 'âš–'
+        icon: '⚖'
       };
     case 'FACT_CHECKING':
       return {
@@ -251,7 +251,7 @@ function getStreamMeta(streamId) {
         pill: 'TAXONOMY',
         badgeClass: 'stream-taxo',
         color: '#34d399',
-        icon: 'ðŸ·'
+        icon: '⌗'
       };
     case 'SENTIMENT_ANALYSIS':
       return {
@@ -259,7 +259,7 @@ function getStreamMeta(streamId) {
         pill: 'AFFECTIVE',
         badgeClass: 'stream-sent',
         color: '#fbbf24',
-        icon: 'â™¡'
+        icon: '♡'
       };
     default:
       return {
@@ -298,8 +298,8 @@ function renderTasks() {
       <h3>${escapeHtml(task.title)}</h3>
       <p>${escapeHtml(task.description)}</p>
       <div class="task-meta">
-        <span>â—· ${escapeHtml(task.time)}</span>
-        <span>â—‡ ${escapeHtml(task.level || 'All levels')}</span>
+        <span>◷ ${escapeHtml(task.time)}</span>
+        <span>◇ ${escapeHtml(task.level || 'All levels')}</span>
         <span class="pay">$${Number(task.pay).toFixed(2)} / task</span>
       </div>
       <div class="task-footer">
@@ -341,8 +341,8 @@ function openTask(task) {
     <h2>${escapeHtml(task.title)}</h2>
     <p style="font-size: 15px; color: #cbd5e1; margin-bottom: 14px;">${escapeHtml(task.description)}</p>
     <div class="dialog-meta" style="margin-bottom: 16px;">
-      <span>â—· Time Limit: ${escapeHtml(task.time)}</span>
-      <span>â—‡ ${escapeHtml(task.level || 'All levels')}</span>
+      <span>◷ Time Limit: ${escapeHtml(task.time)}</span>
+      <span>◇ ${escapeHtml(task.level || 'All levels')}</span>
       <span style="color: var(--mint); font-weight: 700;">$${Number(task.pay).toFixed(2)} Instant Credit</span>
     </div>
 
@@ -389,7 +389,7 @@ function openTask(task) {
       </div>
     ` : (userAccountData && userAccountData.todayCount >= 2) ? `
       <div class="auth-gate-box" style="margin-top:20px; padding:28px 20px; border:1px solid #f59e0b; background:rgba(245, 158, 11, 0.08); border-radius:8px;">
-        <div style="font-size:32px; margin-bottom:8px;">â³</div>
+        <div style="font-size:32px; margin-bottom:8px;">…</div>
         <h3 style="color:#fbbf24; margin:0 0 8px; font-size:16px; font-weight:800; text-transform:uppercase; letter-spacing:0.05em;">Daily Task Limit Reached (2/2)</h3>
         <p style="color:#cbd5e1; font-size:13px; line-height:1.6; margin:0; max-width:540px;">
           To ensure high evaluation rigor and quality control, NexusGrid contributors are limited to <strong>2 completed evaluations per day</strong>. You have completed your 2 tasks for today. Your daily limit will reset tomorrow.
@@ -522,17 +522,17 @@ function openTask(task) {
 
           <div class="nexus-winner-cards" id="winnerCardsContainer">
             <div class="nexus-winner-card" data-winner="Model A">
-              <span style="font-size:24px;">ðŸ†</span>
+              <span style="font-size:24px;">★</span>
               <span class="winner-title">WINNER: MODEL A</span>
               <span class="winner-desc">Response A is superior</span>
             </div>
             <div class="nexus-winner-card" data-winner="Tie / Equivalent">
-              <span style="font-size:24px;">âš–</span>
+              <span style="font-size:24px;">⚖</span>
               <span class="winner-title">TIE / EQUIVALENT</span>
               <span class="winner-desc">Both responses are comparable</span>
             </div>
             <div class="nexus-winner-card card-b" data-winner="Model B">
-              <span style="font-size:24px;">ðŸ†</span>
+              <span style="font-size:24px;">★</span>
               <span class="winner-title">WINNER: MODEL B</span>
               <span class="winner-desc">Response B is superior</span>
             </div>
@@ -551,7 +551,7 @@ function openTask(task) {
           </label>
         </div>
 
-        <button class="nexus-submit-btn" type="submit" id="submitReviewBtn">FINAL SUBMIT &amp; INSTANT CREDIT <span>ðŸ›¡ï¸</span></button>
+        <button class="nexus-submit-btn" type="submit" id="submitReviewBtn">FINAL SUBMIT &amp; INSTANT CREDIT <span>✓</span></button>
       </form>
     `}
   `;
