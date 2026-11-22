@@ -34,12 +34,12 @@ function showToast(message) {
 
 // Score Label Helper
 function getScoreLabel(score) {
-  if (score >= 4.8) return 'Very Excellent â­';
-  if (score >= 4.0) return 'Excellent ðŸŸ©';
-  if (score >= 3.5) return 'Good ðŸŸ¦';
-  if (score >= 2.5) return 'Fair ðŸŸ¨';
-  if (score >= 1.5) return 'Poor ðŸŸ¥';
-  return 'Very Poor â¬›';
+  if (score >= 4.8) return 'Very Excellent';
+  if (score >= 4.0) return 'Excellent ';
+  if (score >= 3.5) return 'Good ';
+  if (score >= 2.5) return 'Fair ';
+  if (score >= 1.5) return 'Poor ';
+  return 'Very Poor';
 }
 
 // -----------------------------------------------------------------------------
@@ -204,7 +204,7 @@ async function loadAdminData() {
               ${autoScore !== null ? `
               <div class="auto-score-breakdown" style="margin: 12px 0; padding: 14px 16px; background:rgba(99,102,241,0.06); border:1px solid rgba(99,102,241,0.18); border-radius:8px;">
                 <div style="font-size:10px; font-weight:700; text-transform:uppercase; letter-spacing:0.1em; color:#818cf8; margin-bottom:8px;">
-                  ðŸ“Š Auto-Calculated Score from Dimensional Ratings
+                  Auto-Calculated Score from Dimensional Ratings
                 </div>
                 <div style="display:flex; align-items:center; gap:14px; flex-wrap:wrap;">
                   <strong style="font-size:28px; color:#e2e8f0; font-family:var(--mono);">${autoScore.toFixed(2)}<span style="font-size:14px; color:#64748b;">/5</span></strong>
@@ -228,12 +228,12 @@ async function loadAdminData() {
                 <label>Feedback Rating
                   <select name="feedback_label" required>
                     <option value="">Select feedback label</option>
-                    <option value="Very Poor">â¬› Very Poor (1/5) — Needs major revision</option>
-                    <option value="Poor">ðŸŸ¥ Poor (2/5) — Below expectations</option>
-                    <option value="Fair">ðŸŸ¨ Fair (3/5) — Meets minimum standards</option>
-                    <option value="Good">ðŸŸ¦ Good (4/5) — Strong and accurate</option>
-                    <option value="Excellent">ðŸŸ© Excellent (5/5) — Outstanding quality</option>
-                    <option value="Very Excellent">â­ Very Excellent (5/5+) — Exceptional, top-tier work</option>
+                    <option value="Very Poor">Very Poor (1/5) — Needs major revision</option>
+                    <option value="Poor"> Poor (2/5) — Below expectations</option>
+                    <option value="Fair"> Fair (3/5) — Meets minimum standards</option>
+                    <option value="Good"> Good (4/5) — Strong and accurate</option>
+                    <option value="Excellent"> Excellent (5/5) — Outstanding quality</option>
+                    <option value="Very Excellent">Very Excellent (5/5+) — Exceptional, top-tier work</option>
                   </select>
                 </label>
                 <label>Additional Notes (optional)
@@ -270,7 +270,7 @@ async function loadAdminData() {
             if (preview) {
               if (autoScoreVal > 0) {
                 const final = Math.round(((adminVal * 0.60) + (autoScoreVal * 0.40)) * 100) / 100;
-                preview.innerHTML = `→ Final: <strong style="color:#818cf8;">${final.toFixed(2)}</strong>/5 <span style="font-size:10px; color:#475569;">(Admin ${adminVal} Ã— 60% + Auto ${autoScoreVal.toFixed(2)} Ã— 40%)</span>`;
+                preview.innerHTML = `→ Final: <strong style="color:#818cf8;">${final.toFixed(2)}</strong>/5 <span style="font-size:10px; color:#475569;">(Admin ${adminVal} × 60% + Auto ${autoScoreVal.toFixed(2)} × 40%)</span>`;
               } else {
                 preview.innerHTML = `→ Final: <strong style="color:#818cf8;">${adminVal}.00</strong>/5`;
               }
@@ -461,7 +461,7 @@ function initAdminActions() {
       const data = await res.json();
       if (res.ok) {
         const finalScore = data.finalScore ? parseFloat(data.finalScore).toFixed(2) : score;
-        const autoNote = data.autoScore > 0 ? ` (Admin ${score} Ã— 60% + Auto ${parseFloat(data.autoScore).toFixed(2)} Ã— 40%)` : '';
+        const autoNote = data.autoScore > 0 ? ` (Admin ${score} × 60% + Auto ${parseFloat(data.autoScore).toFixed(2)} × 40%)` : '';
         const emailNote = sendEmail ? (data.emailSent ? ' · Email sent ✓' : ' · Email delivery attempted') : '';
         showToast(`✓ Final Score: ${finalScore}/5 — ${data.feedbackLabel || feedbackLabel}${autoNote}${emailNote}`);
         loadAdminData();
@@ -582,7 +582,7 @@ function initAdminActions() {
       if (res.ok) {
         showToast(data.emailSent ? `✓ Email sent to ${toEmail}` : `Email attempted to ${toEmail} (check server mail config)`);
         if (statusEl) {
-          statusEl.textContent = data.emailSent ? `✓ Delivered to ${toEmail}` : `âš  Attempted — check server PHP mail() configuration`;
+          statusEl.textContent = data.emailSent ? `✓ Delivered to ${toEmail}` : `! Attempted — check server PHP mail() configuration`;
           statusEl.style.display = 'block';
           statusEl.style.color = data.emailSent ? 'var(--mint)' : '#f59e0b';
         }
@@ -596,7 +596,7 @@ function initAdminActions() {
       showToast('Error communicating with API.');
     } finally {
       btn.disabled = false;
-      btn.innerHTML = 'Send Email <span>âœ‰</span>';
+      btn.innerHTML = 'Send Email <span>✉</span>';
     }
   });
 
@@ -643,7 +643,7 @@ function renderEmailLog(to, subject, sent) {
   const existing = logEl.innerHTML === '' ? '' : logEl.innerHTML;
   const time = new Date().toLocaleTimeString();
   logEl.innerHTML = `<div class="email-log-entry ${sent ? 'log-sent' : 'log-failed'}">
-    <span class="log-icon">${sent ? 'âœ‰' : 'âš '}</span>
+    <span class="log-icon">${sent ? '✉' : '!'}</span>
     <div>
       <strong>To: ${escapeHtml(to)}</strong>
       <small>${escapeHtml(subject)}</small>

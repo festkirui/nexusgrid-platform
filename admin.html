@@ -97,7 +97,7 @@
       <!-- Section: User Management & Contributor Logins -->
       <div class="user-management-panel" id="users">
         <div class="admin-title">
-          <span class="admin-icon">ðŸ‘¥</span>
+          <span class="admin-icon">●</span>
           <div>
             <h3>User Management &amp; Contributor Logins</h3>
             <small>Add new users to the database and assign login credentials to give them account access.</small>
@@ -108,7 +108,7 @@
           <!-- Add User Form -->
           <form id="addUserForm" class="admin-create">
             <div class="admin-title" style="margin-bottom:12px;">
-              <span class="admin-icon" style="width:24px; height:24px; font-size:14px;">ï¼‹</span>
+              <span class="admin-icon" style="width:24px; height:24px; font-size:14px;">+</span>
               <div>
                 <h4 style="margin:0; font-size:13px;">Add New Contributor</h4>
                 <small>Create user credentials</small>
@@ -129,7 +129,7 @@
                 <option value="admin">Administrator (Full administrative access)</option>
               </select>
             </label>
-            <button class="button button-bright" type="submit">Authorize &amp; Save User <span>ï¼‹</span></button>
+            <button class="button button-bright" type="submit">Authorize &amp; Save User <span>+</span></button>
           </form>
 
           <!-- Users List & Credentials Display -->
@@ -141,7 +141,7 @@
               <p><strong>Email:</strong> <span id="credEmail" style="color:var(--mint);"></span></p>
               <p><strong>Password:</strong> <span id="credPass" style="color:var(--mint);"></span></p>
               <p><strong>Role:</strong> <span id="credRole" style="color:#dbe4df;"></span></p>
-              <button type="button" id="copyCredBtn">Copy Logins ðŸ“‹</button>
+              <button type="button" id="copyCredBtn">Copy Logins Copy</button>
             </div>
 
             <div class="user-table-wrap">
@@ -182,7 +182,7 @@
         <!-- Create Task Form -->
         <form class="admin-create" id="taskForm" style="align-self:start;">
           <div class="admin-title">
-            <span class="admin-icon">ï¼‹</span>
+            <span class="admin-icon">+</span>
             <div>
               <h3 id="create">Create an Opportunity</h3>
               <small>New tasks appear in the public catalog instantly.</small>
@@ -217,7 +217,7 @@
       <!-- Section: Account Security & Geo-Alerts -->
       <div class="security-panel" id="security" style="margin-top:25px;">
         <div class="admin-title">
-          <span class="admin-icon">âŒ‘</span>
+          <span class="admin-icon">◷</span>
           <div>
             <h3>Account Security &amp; Geo-Alert Controls</h3>
             <small>Record an unfamiliar-country alert and manage contributor access in MySQL.</small>
@@ -230,7 +230,7 @@
           <label>Country in security alert
             <input name="country" required maxlength="80" placeholder="e.g. Switzerland">
           </label>
-          <button class="button button-outline" type="submit">Flag for review <span>âš‘</span></button>
+          <button class="button button-outline" type="submit">Flag for review <span>!</span></button>
         </form>
         <div id="securityAccounts" class="security-accounts"></div>
       </div>
@@ -238,7 +238,7 @@
       <!-- Section: Email Notifications -->
       <div class="security-panel" id="notifications" style="margin-top:25px;">
         <div class="admin-title">
-          <span class="admin-icon">âœ‰</span>
+          <span class="admin-icon">✉</span>
           <div>
             <h3>Email Notifications</h3>
             <small>Send a custom message to any contributor. Grading emails are sent automatically.</small>
@@ -255,7 +255,7 @@
             <textarea name="message" required rows="5" maxlength="2000" id="notifyMessage" placeholder="Type your message to the contributor here..."></textarea>
           </label>
           <div style="display:flex; gap:10px; flex-wrap:wrap; align-items:center;">
-            <button class="button button-bright" type="submit" id="notifySubmitBtn">Send Email <span>âœ‰</span></button>
+            <button class="button button-bright" type="submit" id="notifySubmitBtn">Send Email <span>✉</span></button>
             <button class="button button-outline" type="button" id="notifyAllBtn">Email All Contributors</button>
           </div>
           <small id="notifyStatus" style="display:none; margin-top:8px; color:var(--mint); font-family:var(--mono);"></small>
