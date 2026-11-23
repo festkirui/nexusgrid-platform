@@ -343,7 +343,7 @@ function openTask(task) {
     <div class="dialog-meta" style="margin-bottom: 16px;">
       <span>◷ Time Limit: ${escapeHtml(task.time)}</span>
       <span>◇ ${escapeHtml(task.level || 'All levels')}</span>
-      <span style="color: var(--mint); font-weight: 700;">$${Number(task.pay).toFixed(2)} Instant Credit</span>
+      <span style="color: var(--mint); font-weight: 700;">$${Number(task.pay).toFixed(2)} credit after approval</span>
     </div>
 
     ${task.prompt_text ? `
@@ -551,7 +551,7 @@ function openTask(task) {
           </label>
         </div>
 
-        <button class="nexus-submit-btn" type="submit" id="submitReviewBtn">FINAL SUBMIT &amp; INSTANT CREDIT <span>✓</span></button>
+        <button class="nexus-submit-btn" type="submit" id="submitReviewBtn">FINAL SUBMIT FOR REVIEW <span>✓</span></button>
       </form>
     `}
   `;
@@ -670,8 +670,14 @@ function openTask(task) {
         auto_score: autoScore
       };
 
+      const submitButton = submissionForm.querySelector('#submitReviewBtn');
+      if (submitButton) {
+        submitButton.disabled = true;
+        submitButton.setAttribute('aria-busy', 'true');
+      }
+
       try {
-        const res = await fetch('/api/index.js?action=create_submission', {
+        const res = await fetch('/api?action=create_submission', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(payload)
@@ -688,7 +694,12 @@ function openTask(task) {
         showToast('Evaluation submitted! Your alignment audit is saved and waiting for admin review.');
       } catch (err) {
         console.error(err);
-        showToast('Error communicating with PHP server.');
+        showToast('Could not submit this evaluation. Check your connection and try again.');
+      } finally {
+        if (submitButton?.isConnected) {
+          submitButton.disabled = false;
+          submitButton.removeAttribute('aria-busy');
+        }
       }
     });
   }

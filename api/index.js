@@ -229,7 +229,7 @@ module.exports = async function handler(req, res) {
       case 'create_submission': {
         if (method !== 'POST') return err(res, 405, 'Method Not Allowed');
         const b = await body(req);
-        const taskId = (b.taskId || '').trim();
+        const taskId = String(b.taskId ?? '').trim();
         const name   = (b.name || '').trim();
         const email  = (b.email || '').toLowerCase().trim();
         let response = (b.response || '').trim();
