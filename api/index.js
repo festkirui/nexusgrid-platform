@@ -30,6 +30,30 @@ async function body(req) {
   });
 }
 
+async function findActiveAdmin(req) {
+  const match = (req.headers.authorization || '').match(/^Bearer\s+(\S+)$/i);
+  if (!match) return null;
+  const { rows } = await query(
+    "SELECT id FROM users WHERE auth_token=$1 AND role='admin' AND status='active' LIMIT 1",
+    [match[1]]
+  );
+  return rows[0] || null;
+}
+
+function escapeEmailHtml(value) {
+  return String(value).replace(/[&<>\"']/g, character => ({
+    '&': '&amp;',
+    '<': '&lt;',
+    '>': '&gt;',
+    '\"': '&quot;',
+    "'": '&#39;'
+  }[character]));
+}
+
+function isValidEmail(value) {
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value);
+}
+
 // ── Handler ───────────────────────────────────────────────────────────────────
 
 module.exports = async function handler(req, res) {
@@ -478,7 +502,84 @@ module.exports = async function handler(req, res) {
 
       case 'admin_notify': {
         if (method !== 'POST') return err(res, 405, 'Method Not Allowed');
-        return ok(res, { success:true, emailSent:false, note:'Configure SMTP_API_KEY (Resend / SendGrid) to enable email notifications.' });
+        if (!await findActiveAdmin(req)) return err(res, 403, 'Administrator authorization is required.');
+
+        const b = await body(req);
+        const subject = typeof b.subject === 'string' ? b.subject.trim() : '';
+        const message = typeof b.message === 'string' ? b.message.trim() : '';
+        const sendAll = b.send_all === true;
+        const toEmail = typeof b.to_email === 'string' ? b.to_email.trim().toLowerCase() : '';
+        if (!subject || !message) return err(res, 400, 'Subject and message are required.');
+        if (subject.length > 200 || message.length > 2000 || /[\r\n]/.test(subject)) {
+          return err(res, 400, 'Subject or message exceeds the allowed length.');
+        }
+        if (!sendAll && !isValidEmail(toEmail)) return err(res, 400, 'A valid contributor email is required.');
+
+        const apiKey = process.env.RESEND_API_KEY;
+        const domain = (process.env.RESEND_EMAIL_DOMAIN || '').trim().toLowerCase();
+        if (!apiKey || !/^[a-z0-9.-]+\.[a-z]{2,}$/i.test(domain)) {
+          return err(res, 503, 'Email sending is not configured.');
+        }
+
+        let recipients;
+        if (sendAll) {
+          const { rows } = await query(
+            "SELECT DISTINCT LOWER(email) AS email FROM users WHERE role='contributor' AND status='active' AND email IS NOT NULL"
+          );
+          recipients = rows.map(row => row.email).filter(isValidEmail);
+          if (!recipients.length) return err(res, 404, 'No active contributors with valid email addresses were found.');
+        } else {
+          const { rows } = await query(
+            "SELECT LOWER(email) AS email FROM users WHERE LOWER(email)=$1 AND role='contributor' AND status='active' LIMIT 1",
+            [toEmail]
+          );
+          if (!rows.length) return err(res, 404, 'No active contributor was found for that email address.');
+          recipients = [rows[0].email];
+        }
+
+        const { Resend } = require('resend');
+        const resend = new Resend(apiKey);
+        const from = `NexusGrid <notifications@${domain}>`;
+        const escapedMessage = escapeEmailHtml(message).replace(/\n/g, '<br>');
+        const emailPayload = email => ({
+          from,
+          to: [email],
+          subject,
+          text: message,
+          html: `<div style="font-family:Arial,sans-serif;line-height:1.6">${escapedMessage}</div>`
+        });
+
+        let accepted = 0;
+        let failed = 0;
+        if (!sendAll) {
+          const { data, error } = await resend.emails.send(emailPayload(recipients[0]));
+          if (error) {
+            console.error('[Resend] Individual email failed:', error.message);
+            return err(res, 502, 'Resend could not accept the email. Check the sender domain and provider configuration.');
+          }
+          accepted = data ? 1 : 0;
+          failed = accepted ? 0 : 1;
+        } else {
+          for (let offset = 0; offset < recipients.length; offset += 100) {
+            const batch = recipients.slice(offset, offset + 100).map(emailPayload);
+            const { data, error } = await resend.batch.send(batch, { idempotencyKey: crypto.randomUUID() });
+            if (error) {
+              failed += batch.length;
+              console.error('[Resend] Contributor email batch failed:', error.message);
+            } else {
+              accepted += batch.length;
+            }
+          }
+        }
+
+        if (!accepted) return err(res, 502, 'Resend could not accept any of the emails.');
+        return ok(res, {
+          success: true,
+          emailAccepted: !sendAll,
+          accepted,
+          failed,
+          total: recipients.length
+        });
       }
 
       // ── DEFAULT ────────────────────────────────────────────────────────────
@@ -487,7 +588,7 @@ module.exports = async function handler(req, res) {
         return ok(res, {
           name: 'NexusGrid API', version: '3.0.0', runtime: 'Node.js / Vercel Serverless',
           database: 'Supabase PostgreSQL',
-          endpoints: ['login','logout','current_user','admin_add_user','admin_list_users','admin_stats','admin_toggle_user','tasks','create_task','submissions','create_submission','grade','account','save_payment_method','delete_payment_method','get_payment_methods','verify','security','security_flag','security_action','work_streams','assessment_test','submit_assessment']
+          endpoints: ['login','logout','current_user','admin_add_user','admin_list_users','admin_stats','admin_toggle_user','admin_notify','tasks','create_task','submissions','create_submission','grade','account','save_payment_method','delete_payment_method','get_payment_methods','verify','security','security_flag','security_action','work_streams','assessment_test','submit_assessment']
         });
     }
   } catch (e) {

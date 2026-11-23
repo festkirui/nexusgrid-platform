@@ -4,12 +4,13 @@
   "description": "NexusGrid — RLHF Contributor Platform | Node.js + Supabase + Vercel",
   "private": true,
   "engines": {
-    "node": ">=18.x"
+    "node": ">=20.x"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.119.2",
     "bcryptjs": "^2.4.3",
-    "pg": "^8.11.3"
+    "pg": "^8.11.3",
+    "resend": "^6.39.0"
   },
   "scripts": {
     "dev": "node dev-server.js",
