@@ -575,18 +575,21 @@ function initAdminActions() {
     try {
       const res = await fetch('/api?action=admin_notify', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${adminAuthToken}`
+        },
         body: JSON.stringify({ to_email: toEmail, subject, message, send_all: false })
       });
       const data = await res.json();
-      if (res.ok) {
-        showToast(data.emailSent ? `✓ Email sent to ${toEmail}` : `Email attempted to ${toEmail} (check server mail config)`);
+      if (res.ok && data.emailAccepted) {
+        showToast(`Email accepted by Resend for ${toEmail}`);
         if (statusEl) {
-          statusEl.textContent = data.emailSent ? `✓ Delivered to ${toEmail}` : `! Attempted — check server PHP mail() configuration`;
+          statusEl.textContent = `Accepted by Resend for ${toEmail}; this is not a delivery confirmation.`;
           statusEl.style.display = 'block';
-          statusEl.style.color = data.emailSent ? 'var(--mint)' : '#f59e0b';
+          statusEl.style.color = 'var(--mint)';
         }
-        renderEmailLog(toEmail, subject, data.emailSent);
+        renderEmailLog(toEmail, subject, true);
         notifyForm.reset();
       } else {
         showToast(data.error || 'Failed to send email.');
@@ -617,13 +620,16 @@ function initAdminActions() {
     try {
       const res = await fetch('/api?action=admin_notify', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${adminAuthToken}`
+        },
         body: JSON.stringify({ subject, message, send_all: true })
       });
       const data = await res.json();
       if (res.ok) {
-        showToast(`Broadcast sent to ${data.sent || 0} contributor(s).`);
-        renderEmailLog('ALL CONTRIBUTORS', subject, data.sent > 0);
+        showToast(`Resend accepted ${data.accepted} of ${data.total} contributor emails; ${data.failed} failed.`);
+        renderEmailLog('ALL CONTRIBUTORS', subject, data.accepted > 0);
       } else {
         showToast(data.error || 'Broadcast failed.');
       }
