@@ -2946,3 +2946,117 @@ h2 {
     grid-template-columns: 1fr;
   }
 }
+
+/* Responsive refinements for compact phones and touch-first layouts. */
+@media (max-width: 640px) {
+  html { scroll-padding-top: 70px; }
+  body { overflow-x: clip; }
+
+  .topbar {
+    height: 64px;
+    padding: 0 16px;
+    gap: 8px;
+  }
+
+  .brand { gap: 7px; font-size: 18px; flex-shrink: 0; }
+  .brand-mark { width: 20px; height: 20px; }
+  .nav-actions { margin-left: auto; gap: 7px; }
+  .nav-actions > .button-quiet { display: none; }
+  .nav-actions .button { min-height: 40px; padding: 9px 11px; font-size: 10px; }
+  .menu-toggle { min-width: 40px; min-height: 40px; justify-content: center; }
+
+  .hero { padding: 48px 20px 45px; }
+  .hero h1 { font-size: clamp(39px, 11vw, 53px); letter-spacing: -2.6px; }
+  .hero-actions { flex-wrap: wrap; gap: 10px; }
+  .hero-actions .button { min-height: 44px; }
+  .hero-art { width: 100%; max-width: 430px; align-self: center; transform: scale(.74); margin: -14px -45px -16px; }
+  .hero-bottom { left: 20px; right: 20px; gap: 8px; font-size: 6px; letter-spacing: .5px; }
+  .hero-line { width: 14px; flex: 0 0 14px; }
+
+  .stats { padding: 23px 20px; column-gap: 12px; row-gap: 17px; }
+  .stats strong { font-size: 23px; }
+  .stats small { font-size: 9px; }
+  .section-wrap { padding-left: 20px; padding-right: 20px; }
+  .opportunities { padding-top: 55px; padding-bottom: 50px; }
+  .section-heading h2, .how-intro h2 { font-size: clamp(31px, 9vw, 38px); }
+  .filters-container { align-items: stretch; flex-direction: column; gap: 0; }
+  .filters { min-height: 48px; width: 100%; }
+  .sort-wrap { min-height: 44px; border-left: 0; border-top: 1px solid #273239; padding: 0 10px; }
+  .sort-label { display: inline; }
+  .filters select { display: block; min-height: 40px; font-size: 12px; }
+  .filter { min-height: 48px; }
+  .task-grid { gap: 11px; }
+  .task-card { padding: 17px 15px 14px; min-height: 0; }
+  .task-card h3 { font-size: 16px; }
+  .task-card > p { font-size: 12px; }
+  .task-meta { flex-wrap: wrap; gap: 9px 14px; font-size: 10px; }
+  .task-meta .pay { margin-left: auto; }
+  .browse-more { align-items: stretch; flex-direction: column; font-size: 10px; }
+  .browse-more .button { min-height: 42px; justify-content: center; }
+  .load-more-wrap .button { width: 100%; min-height: 46px; }
+
+  .workspace-heading h2 { font-size: clamp(32px, 9vw, 37px); }
+  .account-bar { padding: 12px; }
+  .verification-card { gap: 14px; }
+  .verification-action { align-items: flex-start; flex-direction: column; gap: 10px; }
+  .verification-action .button { width: 100%; min-height: 44px; }
+  .rating-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 9px; }
+  .rating-card { min-height: 105px; padding: 13px 12px; overflow-wrap: anywhere; }
+  .rating-card small { font-size: 7px; letter-spacing: .6px; }
+  .rating-card strong { font-size: 23px; }
+  .rating-card p { font-size: 9px; }
+  .submission-row { align-items: flex-start; }
+  .submission-score { flex: 0 0 52px; }
+  .payment-tabs { display: grid !important; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 7px !important; }
+  .pay-tab { min-width: 0; padding: 10px 5px; font-size: 10px; line-height: 1.35; }
+  .pay-panel { padding: 18px 14px; }
+  .pay-actions { flex-direction: column; align-items: stretch; }
+  .pay-actions .button { width: 100%; min-height: 44px; }
+
+  .admin-grid, .user-admin-grid { grid-template-columns: minmax(0, 1fr); }
+  .form-row { grid-template-columns: minmax(0, 1fr); }
+  .user-management-panel { padding: 15px; }
+  .user-table-wrap { margin-right: -5px; }
+  .how-inner { padding-left: 20px; padding-right: 20px; }
+  .step { grid-template-columns: 25px minmax(0, 1fr) 24px; gap: 9px; }
+  .step-icon { font-size: 20px; }
+  .quote-section { padding-left: 20px; padding-right: 20px; }
+  .quote-by { flex-wrap: wrap; }
+  .quote-by small { display: block; max-width: 210px; }
+  .quote-stars { margin-left: auto; }
+  .cta-band { padding: 38px 20px; }
+  .footer { column-gap: 18px; row-gap: 20px; }
+  .footer-links a { min-height: 32px; display: inline-flex; align-items: center; }
+
+  .task-dialog { width: calc(100% - 24px); max-height: calc(100dvh - 24px); padding: 22px 17px; overflow-y: auto; }
+  .verification-dialog { width: calc(100% - 24px); max-height: calc(100dvh - 24px); overflow-y: auto; }
+  .tasks-gate-wrap { margin-left: 0; margin-right: 0; }
+}
+
+@media (max-width: 390px) {
+  .topbar { padding: 0 11px; gap: 4px; }
+  .brand { font-size: 16px; }
+  .brand-mark { width: 18px; height: 18px; }
+  .nav-actions .button { padding: 8px; font-size: 9px; }
+  .menu-toggle { margin-left: 0; padding: 7px; }
+  .hero { padding-left: 16px; padding-right: 16px; }
+  .hero .eyebrow { font-size: 8px; letter-spacing: .9px; }
+  .hero-art { transform: scale(.65); margin: -24px -62px -27px; }
+  .hero-bottom { left: 16px; right: 16px; }
+  .section-wrap, .how-inner { padding-left: 16px; padding-right: 16px; }
+  .stats { padding-left: 16px; padding-right: 16px; }
+  .rating-grid { gap: 7px; }
+  .rating-card { padding: 11px 9px; }
+  .rating-card small { font-size: 6px; }
+  .payment-section { padding-top: 26px; }
+  .pay-tab { font-size: 9px; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    scroll-behavior: auto !important;
+    animation-duration: .01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: .01ms !important;
+  }
+}
