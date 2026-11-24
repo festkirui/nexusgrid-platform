@@ -7,6 +7,7 @@ let shownCount = 12;
 const pageSize = 12;
 
 // Contributor Auth State
+let activeContributorTab = 'dashboard';
 let authToken = localStorage.getItem('nexusgrid_auth_token') || localStorage.getItem('givegrid_auth_token') || null;
 let currentUser = null;
 let userAccountData = null;
@@ -60,6 +61,22 @@ function showToast(message) {
 // CONTRIBUTOR AUTHENTICATION & SESSION
 // -----------------------------------------------------------------------------
 
+function setContributorTab(tabName) {
+  activeContributorTab = tabName;
+  const dashboardPanel = document.querySelector('#dashboardPanel');
+  const opportunitiesSection = document.querySelector('#opportunities');
+  const dashboardTab = document.querySelector('#dashboardTab');
+  const tasksTab = document.querySelector('#tasksTab');
+  const showDashboard = tabName === 'dashboard';
+
+  if (dashboardPanel) dashboardPanel.hidden = !showDashboard;
+  if (opportunitiesSection) opportunitiesSection.style.display = showDashboard ? 'none' : '';
+  dashboardTab?.classList.toggle('active', showDashboard);
+  tasksTab?.classList.toggle('active', !showDashboard);
+  dashboardTab?.setAttribute('aria-selected', String(showDashboard));
+  tasksTab?.setAttribute('aria-selected', String(!showDashboard));
+}
+
 function updateAuthUI() {
   const loginBtn = document.querySelector('#loginButton');
   const authStatusBadge = document.querySelector('#authStatusBadge');
@@ -69,6 +86,7 @@ function updateAuthUI() {
   const changePasswordButton = document.querySelector('#changePasswordButton');
   const opportunitiesSection = document.querySelector('#opportunities');
   const tasksLoginGate = document.querySelector('#tasksLoginGate');
+  const contributorHub = document.querySelector('#contributorHub');
 
   if (currentUser && authToken) {
     if (loginBtn) loginBtn.style.display = 'none';
@@ -79,9 +97,13 @@ function updateAuthUI() {
     }
     if (authGate) authGate.style.display = 'none';
     if (dashboard) dashboard.style.display = 'block';
+    if (contributorHub) contributorHub.hidden = false;
+    setContributorTab('dashboard');
+    const hubUserName = document.querySelector('#hubUserName');
+    if (hubUserName) hubUserName.textContent = currentUser.name || 'contributor';
 
-    // Show tasks, hide the gate
-    if (opportunitiesSection) opportunitiesSection.style.display = '';
+    // Keep the task catalog behind its dedicated workspace tab.
+    if (opportunitiesSection) opportunitiesSection.style.display = 'none';
     if (tasksLoginGate) tasksLoginGate.style.display = 'none';
 
     const accountEmailInput = document.querySelector('#accountEmail');
@@ -100,7 +122,8 @@ function updateAuthUI() {
     if (authGate) authGate.style.display = 'flex';
     if (dashboard) dashboard.style.display = 'none';
 
-    // Hide tasks, show the gate
+    // Hide the contributor workspace and keep the authorization gate visible.
+    if (contributorHub) contributorHub.hidden = true;
     if (opportunitiesSection) opportunitiesSection.style.display = 'none';
     if (tasksLoginGate) tasksLoginGate.style.display = '';
   }
@@ -363,6 +386,8 @@ function renderTasks() {
 
   document.querySelector('#taskCount').textContent = shown.length;
   document.querySelector('#totalTaskCount').textContent = visible.length;
+  const hubTaskCount = document.querySelector('#hubTaskCount');
+  if (hubTaskCount) hubTaskCount.textContent = tasks.length;
   
   const loadMoreBtn = document.querySelector('#loadMore');
   if (loadMoreBtn) {
@@ -817,17 +842,31 @@ async function renderAccount() {
     }
     document.querySelector('#gradedCount').textContent = acc.gradedCount;
     document.querySelector('#pendingCount').textContent = acc.pendingCount;
+    const reviewed = Number(acc.gradedCount) || 0;
+    const waiting = Number(acc.pendingCount) || 0;
+    const reviewedPercent = reviewed + waiting ? Math.round((reviewed / (reviewed + waiting)) * 100) : 0;
+    document.querySelector('#hubGradedCount').textContent = reviewed;
+    document.querySelector('#hubPendingCount').textContent = waiting;
+    document.querySelector('#hubReviewedTotal').textContent = reviewed;
+    document.querySelector('#hubReviewWaiting').textContent = waiting;
+    document.querySelector('#hubReviewPercent').textContent = `${reviewedPercent}%`;
+    document.querySelector('#hubReviewProgress').setAttribute('aria-valuenow', String(reviewedPercent));
+    document.querySelector('#hubReviewBar').style.width = `${reviewedPercent}%`;
     const earningsEl = document.querySelector('#accountEarnings');
     if (earningsEl) {
       earningsEl.textContent = `$${Number(acc.accumulatedMoney || 0).toFixed(2)}`;
     }
+    document.querySelector('#hubEarnings').textContent = `$${Number(acc.accumulatedMoney || 0).toFixed(2)}`;
 
     // Daily Quota Card
     const dailyQuotaEl = document.querySelector('#dailyQuotaCount');
     const dailyQuotaNoteEl = document.querySelector('#dailyQuotaNote');
+    const todayCount = Number(acc.todayCount) || 0;
+    document.querySelector('#hubDailyCount').innerHTML = `${todayCount}<span> / 2</span>`;
+    document.querySelector('#hubDailyNote').textContent = todayCount >= 2 ? 'Daily limit reached · resets tomorrow' : `${2 - todayCount} task${2 - todayCount === 1 ? '' : 's'} remaining today`;
     if (dailyQuotaEl) {
-      dailyQuotaEl.innerHTML = `${acc.todayCount || 0}<span>/2</span>`;
-      if ((acc.todayCount || 0) >= 2) {
+      dailyQuotaEl.innerHTML = `${todayCount}<span>/2</span>`;
+      if (todayCount >= 2) {
         dailyQuotaEl.style.color = '#f87171';
         if (dailyQuotaNoteEl) dailyQuotaNoteEl.textContent = 'Daily limit reached (resets tomorrow)';
       } else {
@@ -871,6 +910,15 @@ async function renderAccount() {
 // -----------------------------------------------------------------------------
 
 function initEventListeners() {
+  document.querySelectorAll('[data-hub-tab]').forEach(button => {
+    button.addEventListener('click', () => {
+      setContributorTab(button.dataset.hubTab);
+      if (button.dataset.hubTab === 'tasks') {
+        document.querySelector('#contributorHub')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      }
+    });
+  });
+
   // Category Filters
   document.querySelectorAll('.filter').forEach(button => {
     button.addEventListener('click', () => {
