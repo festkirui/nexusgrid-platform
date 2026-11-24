@@ -66,11 +66,13 @@ function updateAuthUI() {
   const navUserName = document.querySelector('#navUserName');
   const authGate = document.querySelector('#authGateContainer');
   const dashboard = document.querySelector('#contributorDashboard');
+  const changePasswordButton = document.querySelector('#changePasswordButton');
   const opportunitiesSection = document.querySelector('#opportunities');
   const tasksLoginGate = document.querySelector('#tasksLoginGate');
 
   if (currentUser && authToken) {
     if (loginBtn) loginBtn.style.display = 'none';
+    if (changePasswordButton) changePasswordButton.style.display = 'inline-flex';
     if (authStatusBadge) {
       authStatusBadge.style.display = 'flex';
       navUserName.textContent = `👤 ${currentUser.name}`;
@@ -93,6 +95,7 @@ function updateAuthUI() {
     renderAccount();
   } else {
     if (loginBtn) loginBtn.style.display = 'inline-flex';
+    if (changePasswordButton) changePasswordButton.style.display = 'none';
     if (authStatusBadge) authStatusBadge.style.display = 'none';
     if (authGate) authGate.style.display = 'flex';
     if (dashboard) dashboard.style.display = 'none';
@@ -139,7 +142,9 @@ if (loginForm) {
       updateAuthUI();
       loginDialog?.close();
       loginForm.reset();
-      showToast(`Welcome, ${currentUser.name}! You are authorized.`);
+      showToast(data.securityEmailAccepted
+        ? `Welcome, ${currentUser.name}! A sign-in security email was accepted for delivery.`
+        : `Welcome, ${currentUser.name}! Sign-in alert email could not be sent.`);
     } catch (err) {
       console.error(err);
       showToast('Error communicating with database.');
@@ -169,6 +174,52 @@ document.querySelector('#logoutButton')?.addEventListener('click', async () => {
 
   updateAuthUI();
   showToast('You have been logged out.');
+});
+
+document.querySelector('#changePasswordButton')?.addEventListener('click', () => document.querySelector('#changePasswordDialog')?.showModal());
+
+document.querySelector('#changePasswordForm')?.addEventListener('submit', async event => {
+  event.preventDefault();
+  const form = event.currentTarget;
+  const currentPassword = document.querySelector('#currentPasswordInput').value;
+  const newPassword = document.querySelector('#newPasswordInput').value;
+  const confirmation = document.querySelector('#confirmPasswordInput').value;
+  const submit = document.querySelector('#changePasswordSubmit');
+
+  if (newPassword !== confirmation) {
+    showToast('The new password and confirmation do not match.');
+    return;
+  }
+  if (newPassword.length < 12) {
+    showToast('Choose a new password with at least 12 characters.');
+    return;
+  }
+
+  submit.disabled = true;
+  submit.textContent = 'Updating…';
+  try {
+    const response = await fetch('/api?action=change_password', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ token: authToken, currentPassword, newPassword })
+    });
+    const result = await response.json();
+    if (!response.ok) {
+      showToast(result.error || 'Could not update your password.');
+      return;
+    }
+    authToken = result.token;
+    localStorage.setItem('nexusgrid_auth_token', authToken);
+    form.reset();
+    document.querySelector('#changePasswordDialog')?.close();
+    showToast(result.emailSent ? 'Password updated. The security email was accepted for delivery.' : 'Password updated, but the security email could not be sent. Contact support if this was unexpected.');
+  } catch (error) {
+    console.error(error);
+    showToast('Network error while updating your password. Please try again.');
+  } finally {
+    submit.disabled = false;
+    submit.textContent = 'Update password';
+  }
 });
 
 document.querySelector('#loginButton')?.addEventListener('click', () => loginDialog?.showModal());
@@ -661,6 +712,7 @@ function openTask(task) {
         taskId: task.id,
         name: formData.get('name'),
         email: formData.get('email'),
+        token: authToken,
         choice: choice,
         verdict: choice,
         criteria: ['Factual Accuracy', 'Instruction Following', 'Reasoning Rigor', 'Safety & Guardrails'],
@@ -691,7 +743,9 @@ function openTask(task) {
 
         taskDialog.close();
         renderAccount();
-        showToast('Evaluation submitted! Your alignment audit is saved and waiting for admin review.');
+        showToast(resData.emailSent
+          ? 'Evaluation submitted. A confirmation email was accepted for delivery.'
+          : 'Evaluation submitted, but the confirmation email could not be sent.');
       } catch (err) {
         console.error(err);
         showToast('Could not submit this evaluation. Check your connection and try again.');
@@ -715,8 +769,8 @@ async function renderAccount() {
 
   try {
     const [accRes, subRes] = await Promise.all([
-      fetch(`/api?action=account&email=${encodeURIComponent(email)}`),
-      fetch(`/api?action=submissions&email=${encodeURIComponent(email)}`)
+      fetch('/api?action=account', { headers: { Authorization: `Bearer ${authToken}` } }),
+      fetch(`/api?action=submissions&email=${encodeURIComponent(email)}`, { headers: { Authorization: `Bearer ${authToken}` } })
     ]);
 
     const acc = await accRes.json();
@@ -942,7 +996,7 @@ function initPaymentTabs() {
 async function loadPaymentMethods(email) {
   if (!email) return;
   try {
-    const r = await fetch(`/api?action=get_payment_methods&email=${encodeURIComponent(email)}`);
+    const r = await fetch('/api?action=get_payment_methods', { headers: { Authorization: `Bearer ${authToken}` } });
     const methods = await r.json();
     if (!Array.isArray(methods)) return;
 
@@ -1001,12 +1055,14 @@ async function savePaymentMethod(type, payload) {
     const r = await fetch('/api?action=save_payment_method', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ email, method_type: type, ...payload })
+      body: JSON.stringify({ token: authToken, method_type: type, ...payload })
     });
     const data = await r.json();
     if (data.success) {
       showPaySaved(type, { ...payload, method_type: type });
-      showToast(`${type.charAt(0).toUpperCase() + type.slice(1)} payout details saved!`);
+      showToast(data.emailSent
+        ? `${type.charAt(0).toUpperCase() + type.slice(1)} payout details saved; a security email was accepted for delivery.`
+        : `${type.charAt(0).toUpperCase() + type.slice(1)} payout details saved, but the security email could not be sent.`);
       const removeBtn = document.getElementById('remove' + type.charAt(0).toUpperCase() + type.slice(1) + 'Btn');
       if (removeBtn) removeBtn.style.display = 'inline-flex';
     } else {
@@ -1026,7 +1082,7 @@ async function removePaymentMethod(type) {
     const r = await fetch('/api?action=delete_payment_method', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ email, method_type: type })
+      body: JSON.stringify({ token: authToken, method_type: type })
     });
     const data = await r.json();
     if (data.success) {
@@ -1038,7 +1094,9 @@ async function removePaymentMethod(type) {
       if (type === 'bank') { document.getElementById('bankAccountName').value = ''; document.getElementById('bankRoutingNumber').value = ''; document.getElementById('bankAccountNumber').value = ''; document.getElementById('bankIsPrimary').checked = false; }
       if (type === 'paypal') { document.getElementById('paypalEmail').value = ''; document.getElementById('paypalIsPrimary').checked = false; }
       if (type === 'stripe') { document.getElementById('stripeAccountId').value = ''; document.getElementById('stripeIsPrimary').checked = false; }
-      showToast(`${type} payout method removed.`);
+      showToast(data.emailSent
+        ? `${type} payout method removed; a security email was accepted for delivery.`
+        : `${type} payout method removed; the email alert could not be sent or the method was already absent.`);
     }
   } catch (e) {
     showToast('Error removing payment method. Please try again.');

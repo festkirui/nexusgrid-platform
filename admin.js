@@ -153,7 +153,7 @@ document.querySelector('#adminLoginBtn')?.addEventListener('click', () => {
 async function loadAdminData() {
   try {
     const [subRes, secRes, userRes, statsRes] = await Promise.all([
-      fetch('/api?action=submissions&status=pending'),
+      fetch('/api?action=submissions&status=pending', { headers: { Authorization: `Bearer ${adminAuthToken}` } }),
       fetch('/api?action=security'),
       fetch('/api?action=admin_list_users'),
       fetch('/api?action=admin_stats')
@@ -454,7 +454,10 @@ function initAdminActions() {
     try {
       const res = await fetch('/api?action=grade', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${adminAuthToken}`
+        },
         body: JSON.stringify(payload)
       });
 
@@ -462,7 +465,7 @@ function initAdminActions() {
       if (res.ok) {
         const finalScore = data.finalScore ? parseFloat(data.finalScore).toFixed(2) : score;
         const autoNote = data.autoScore > 0 ? ` (Admin ${score} × 60% + Auto ${parseFloat(data.autoScore).toFixed(2)} × 40%)` : '';
-        const emailNote = sendEmail ? (data.emailSent ? ' · Email sent ✓' : ' · Email delivery attempted') : '';
+        const emailNote = data.emailSent ? ' · Contributor email accepted for delivery' : ' · Contributor email could not be sent';
         showToast(`✓ Final Score: ${finalScore}/5 — ${data.feedbackLabel || feedbackLabel}${autoNote}${emailNote}`);
         loadAdminData();
       } else {

@@ -54,6 +54,47 @@ function isValidEmail(value) {
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value);
 }
 
+async function sendAccountEmail(email, subject, message) {
+  const apiKey = process.env.RESEND_API_KEY;
+  const domain = (process.env.RESEND_EMAIL_DOMAIN || '').trim().toLowerCase();
+  if (!apiKey || !isValidEmail(email) || !/^[a-z0-9.-]+\.[a-z]{2,}$/i.test(domain)) {
+    console.warn('[Resend] Account notification skipped: email configuration or recipient is invalid.');
+    return false;
+  }
+
+  try {
+    const { Resend } = require('resend');
+    const resend = new Resend(apiKey);
+    const escapedMessage = escapeEmailHtml(message).replace(/\n/g, '<br>');
+    const { error } = await resend.emails.send({
+      from: `NexusGrid Security <notifications@${domain}>`,
+      to: [email],
+      subject,
+      text: message,
+      html: `<div style="font-family:Arial,sans-serif;line-height:1.6">${escapedMessage}</div>`
+    });
+    if (error) {
+      console.error('[Resend] Account notification failed:', error.message);
+      return false;
+    }
+    return true;
+  } catch (error) {
+    console.error('[Resend] Account notification failed:', error.message);
+    return false;
+  }
+}
+
+async function findAuthenticatedUser(req, suppliedToken = '') {
+  const headerToken = (req.headers.authorization || '').match(/^Bearer\s+(\S+)$/i)?.[1] || '';
+  const token = suppliedToken || headerToken;
+  if (!token) return null;
+  const { rows } = await query(
+    "SELECT id, name, email, role, status FROM users WHERE auth_token=$1 AND status='active' LIMIT 1",
+    [token]
+  );
+  return rows[0] || null;
+}
+
 // ── Handler ───────────────────────────────────────────────────────────────────
 
 module.exports = async function handler(req, res) {
@@ -83,7 +124,30 @@ module.exports = async function handler(req, res) {
 
         const token = crypto.randomBytes(24).toString('hex');
         await query('UPDATE users SET auth_token=$1, last_login=NOW() WHERE id=$2', [token, user.id]);
-        return ok(res, { success: true, token, user: { id: user.id, name: user.name, email: user.email, role: user.role, status: user.status } });
+        const loginTime = new Date().toISOString();
+        const ipAddress = (req.headers['x-forwarded-for'] || req.socket?.remoteAddress || 'Unknown').toString().split(',')[0].trim();
+        const securityEmailAccepted = await sendAccountEmail(user.email, 'New sign-in to your NexusGrid account', `A successful sign-in was detected for your NexusGrid account.\nTime: ${loginTime} (UTC)\nIP address: ${ipAddress}\n\nIf this was not you, change your password immediately and contact support.`);
+        return ok(res, { success: true, token, securityEmailAccepted, user: { id: user.id, name: user.name, email: user.email, role: user.role, status: user.status } });
+      }
+
+      case 'change_password': {
+        if (method !== 'POST') return err(res, 405, 'Method Not Allowed');
+        const b = await body(req);
+        const user = await findAuthenticatedUser(req, b.token || '');
+        if (!user) return err(res, 401, 'Your session has expired. Please sign in again.');
+        const currentPassword = typeof b.currentPassword === 'string' ? b.currentPassword : '';
+        const newPassword = typeof b.newPassword === 'string' ? b.newPassword : '';
+        if (!currentPassword || !newPassword) return err(res, 400, 'Current and new passwords are required.');
+        if (newPassword.length < 12 || newPassword.length > 128 || Buffer.byteLength(newPassword, 'utf8') > 72) return err(res, 400, 'Choose a password of at least 12 characters and no more than 72 UTF-8 bytes.');
+        const { rows } = await query('SELECT password_hash FROM users WHERE id=$1 LIMIT 1', [user.id]);
+        if (!rows[0] || !await bcrypt.compare(currentPassword, rows[0].password_hash)) {
+          return err(res, 403, 'The current password is incorrect.');
+        }
+        const passwordHash = await bcrypt.hash(newPassword, 12);
+        const token = crypto.randomBytes(24).toString('hex');
+        await query('UPDATE users SET password_hash=$1, auth_token=$2 WHERE id=$3', [passwordHash, token, user.id]);
+        const emailSent = await sendAccountEmail(user.email, 'Your NexusGrid password was changed', `The password for your NexusGrid account was changed successfully.\n\nIf you did not make this change, contact support immediately and secure your email account.`);
+        return ok(res, { success: true, token, emailSent });
       }
 
       case 'logout': {
@@ -235,7 +299,15 @@ module.exports = async function handler(req, res) {
       // ── SUBMISSIONS ────────────────────────────────────────────────────────
 
       case 'submissions': {
-        const email  = (req.query.email || '').trim();
+        const requestedEmail = (req.query.email || '').trim().toLowerCase();
+        let email = '';
+        if (requestedEmail) {
+          const user = await findAuthenticatedUser(req);
+          if (!user || user.email.toLowerCase() !== requestedEmail) return err(res, 401, 'You can only view submissions for your signed-in account.');
+          email = user.email;
+        } else if (!await findActiveAdmin(req)) {
+          return err(res, 403, 'Administrator authorization is required to view all submissions.');
+        }
         const status = (req.query.status || '').trim();
         const where  = [], params = [];
         let i = 1;
@@ -253,9 +325,11 @@ module.exports = async function handler(req, res) {
       case 'create_submission': {
         if (method !== 'POST') return err(res, 405, 'Method Not Allowed');
         const b = await body(req);
+        const user = await findAuthenticatedUser(req, b.token || '');
+        if (!user || user.role !== 'contributor') return err(res, 401, 'Please sign in with an authorized contributor account.');
         const taskId = String(b.taskId ?? '').trim();
-        const name   = (b.name || '').trim();
-        const email  = (b.email || '').toLowerCase().trim();
+        const name   = user.name;
+        const email  = user.email.toLowerCase();
         let response = (b.response || '').trim();
 
         if (b.justification) {
@@ -270,11 +344,6 @@ module.exports = async function handler(req, res) {
         }
 
         if (!taskId || !name || !email || !response) return err(res, 400, 'All evaluation fields are required.');
-
-        const ur = await query('SELECT id, status FROM users WHERE LOWER(email)=$1 LIMIT 1', [email]);
-        const user = ur.rows[0];
-        if (!user) return err(res, 403, 'Unauthorized. Only administrator-approved contributors may submit tasks.');
-        if (user.status === 'disabled') return err(res, 403, 'This account has been disabled by the administrator.');
 
         const sr = await query('SELECT status FROM account_controls WHERE LOWER(email)=$1', [email]);
         if (sr.rows[0]?.status === 'disabled') return err(res, 403, 'Account paused — security review in progress.');
@@ -293,13 +362,15 @@ module.exports = async function handler(req, res) {
           "INSERT INTO submissions (sub_uid,task_id,task_title,category,contributor_name,contributor_email,response_text,pay,status,auto_score,dim_scores,submitted_at) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,'pending',$9,$10,NOW()) RETURNING id",
           [uid, taskId, task?.title||'Task', task?.category||'General', name, email, response, task?.pay||25, autoScore, dimScores]
         );
-        return ok(res, { success:true, id:ins.rows[0].id, uid, email });
+        const emailSent = await sendAccountEmail(user.email, 'Evaluation received by NexusGrid', `We received your evaluation${task?.title ? ` for “${task.title}”` : ''}. Its status is now pending review. We will email you when there is an update.`);
+        return ok(res, { success:true, id:ins.rows[0].id, uid, email, emailSent });
       }
 
       // ── GRADE ──────────────────────────────────────────────────────────────
 
       case 'grade': {
         if (method !== 'POST') return err(res, 405, 'Method Not Allowed');
+        if (!await findActiveAdmin(req)) return err(res, 403, 'Administrator authorization is required.');
         const b = await body(req);
         const sid = b.id || b.submissionId;
         if (!sid) return err(res, 400, 'Submission ID is required.');
@@ -308,9 +379,10 @@ module.exports = async function handler(req, res) {
         let feedbackLabel = (b.feedback_label || '').trim();
         let feedback = (b.feedback || feedbackLabel).trim();
 
-        const sr = await query('SELECT contributor_email, contributor_name, auto_score FROM submissions WHERE CAST(id AS VARCHAR)=$1 OR sub_uid=$2 LIMIT 1', [String(sid), sid]);
+        const sr = await query('SELECT contributor_email, contributor_name, task_title, auto_score FROM submissions WHERE CAST(id AS VARCHAR)=$1 OR sub_uid=$2 LIMIT 1', [String(sid), sid]);
         const sub = sr.rows[0];
-        const storedAuto = sub?.auto_score ? parseFloat(sub.auto_score) : 0;
+        if (!sub) return err(res, 404, 'Submission not found.');
+        const storedAuto = sub.auto_score ? parseFloat(sub.auto_score) : 0;
 
         let final;
         if (adminScore !== null) {
@@ -326,17 +398,18 @@ module.exports = async function handler(req, res) {
         if (!feedback) feedback = feedbackLabel;
 
         await query("UPDATE submissions SET status='approved',score=$1,feedback=$2,reviewed_at=NOW() WHERE CAST(id AS VARCHAR)=$3 OR sub_uid=$4", [final, feedback, String(sid), sid]);
-        return ok(res, { success:true, finalScore:final, adminScore, autoScore:storedAuto, feedbackLabel, feedback });
+        const emailSent = await sendAccountEmail(sub.contributor_email, 'Your NexusGrid evaluation was reviewed', `Your evaluation${sub.task_title ? ` for “${sub.task_title}”` : ''} has been reviewed and approved.\nScore: ${final.toFixed(2)}/5\nFeedback: ${feedback}`);
+        return ok(res, { success:true, finalScore:final, adminScore, autoScore:storedAuto, feedbackLabel, feedback, emailSent });
       }
 
       // ── ACCOUNT STATS ──────────────────────────────────────────────────────
 
       case 'account': {
-        const email = (req.query.email || '').toLowerCase().trim();
-        if (!email) return ok(res, { email:'', isAuthorized:false, rating:null, gradedCount:0, pendingCount:0, totalCount:0, isVerified:false, security:null });
+        const user = await findAuthenticatedUser(req);
+        if (!user) return err(res, 401, 'Your session has expired. Please sign in again.');
+        const email = user.email.toLowerCase().trim();
 
-        const [ur, sr, vr, secr, dr, pmr] = await Promise.all([
-          query('SELECT id, name, status, role FROM users WHERE LOWER(email)=$1 LIMIT 1', [email]),
+        const [sr, vr, secr, dr] = await Promise.all([
           query(`SELECT COUNT(*) total,
             SUM(CASE WHEN status='approved' AND score IS NOT NULL THEN 1 ELSE 0 END) graded,
             SUM(CASE WHEN status='pending' THEN 1 ELSE 0 END) pending,
@@ -346,10 +419,8 @@ module.exports = async function handler(req, res) {
           query('SELECT doc_type, verified_at FROM verified_contributors WHERE LOWER(email)=$1', [email]),
           query('SELECT status, country, flagged_at FROM account_controls WHERE LOWER(email)=$1', [email]),
           query("SELECT COUNT(*) FROM submissions WHERE LOWER(contributor_email)=$1 AND DATE(submitted_at)=CURRENT_DATE", [email]),
-          query('SELECT id, method_type, account_name, account_number, routing_number, paypal_email, stripe_account_id, is_primary FROM payment_methods WHERE LOWER(email)=$1 ORDER BY is_primary DESC, id ASC', [email]),
         ]);
 
-        const user  = ur.rows[0];
         const stats = sr.rows[0];
         const today = parseInt(dr.rows[0].count);
 
@@ -364,7 +435,6 @@ module.exports = async function handler(req, res) {
           todayCount: today, maxDaily: 2, canSubmitToday: today < 2,
           isVerified: vr.rows.length > 0,
           security: secr.rows[0] || null,
-          paymentMethods: pmr.rows,
         });
       }
 
@@ -373,13 +443,11 @@ module.exports = async function handler(req, res) {
       case 'save_payment_method': {
         if (method !== 'POST') return err(res, 405, 'Method Not Allowed');
         const b = await body(req);
-        const email = (b.email || '').toLowerCase().trim();
+        const user = await findAuthenticatedUser(req, b.token || '');
+        if (!user) return err(res, 401, 'Your session has expired. Please sign in again.');
+        const email = user.email.toLowerCase();
         const type  = (b.method_type || '').trim(); // 'bank' | 'paypal' | 'stripe'
-        if (!email) return err(res, 400, 'Email is required.');
         if (!['bank','paypal','stripe'].includes(type)) return err(res, 400, 'Invalid method type. Use: bank, paypal, or stripe.');
-
-        const user = await query('SELECT id FROM users WHERE LOWER(email)=$1 LIMIT 1', [email]);
-        if (!user.rows.length) return err(res, 403, 'Unauthorized.');
 
         // If marking as primary, clear existing primary for this email
         if (b.is_primary) {
@@ -404,23 +472,29 @@ module.exports = async function handler(req, res) {
           b.stripe_account_id || null,
           b.is_primary ? true : false,
         ]);
-        return ok(res, { success: true, paymentMethod: rows[0] });
+        const emailSent = await sendAccountEmail(user.email, 'Payout method updated', `A ${type} payout method was added or updated for your NexusGrid account.\n\nIf you did not make this change, change your password immediately and contact support.`);
+        return ok(res, { success: true, emailSent, paymentMethod: rows[0] });
       }
 
       case 'delete_payment_method': {
         if (method !== 'POST') return err(res, 405, 'Method Not Allowed');
         const b = await body(req);
-        const email = (b.email || '').toLowerCase().trim();
+        const user = await findAuthenticatedUser(req, b.token || '');
+        if (!user) return err(res, 401, 'Your session has expired. Please sign in again.');
+        const email = user.email.toLowerCase();
         const type  = (b.method_type || '').trim();
-        if (!email || !type) return err(res, 400, 'Email and method_type are required.');
-        await query('DELETE FROM payment_methods WHERE LOWER(email)=$1 AND method_type=$2', [email, type]);
-        return ok(res, { success: true });
+        if (!['bank','paypal','stripe'].includes(type)) return err(res, 400, 'Invalid payment method.');
+        const removed = await query('DELETE FROM payment_methods WHERE LOWER(email)=$1 AND method_type=$2', [email, type]);
+        const emailSent = removed.rowCount
+          ? await sendAccountEmail(user.email, 'Payout method removed', `Your ${type} payout method was removed from your NexusGrid account.\n\nIf you did not make this change, change your password immediately and contact support.`)
+          : false;
+        return ok(res, { success: true, emailSent });
       }
 
       case 'get_payment_methods': {
-        const email = (req.query.email || '').toLowerCase().trim();
-        if (!email) return err(res, 400, 'Email is required.');
-        const { rows } = await query('SELECT id, method_type, account_name, account_number, routing_number, paypal_email, stripe_account_id, is_primary FROM payment_methods WHERE LOWER(email)=$1 ORDER BY is_primary DESC, id ASC', [email]);
+        const user = await findAuthenticatedUser(req);
+        if (!user) return err(res, 401, 'Your session has expired. Please sign in again.');
+        const { rows } = await query('SELECT id, method_type, account_name, account_number, routing_number, paypal_email, stripe_account_id, is_primary FROM payment_methods WHERE LOWER(email)=$1 ORDER BY is_primary DESC, id ASC', [user.email.toLowerCase()]);
         return ok(res, rows);
       }
 

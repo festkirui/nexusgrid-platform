@@ -163,6 +163,7 @@
             <label for="accountEmail">Authorized Contributor</label>
             <input id="accountEmail" type="email" placeholder="you@example.com" readonly style="opacity:0.9;">
             <span class="account-hint" id="authRoleBadge">Authorized Contributor</span>
+            <button class="button button-outline" id="changePasswordButton" type="button">Change password</button>
           </div>
         
         <article class="verification-card" aria-labelledby="verificationTitle">
@@ -450,6 +451,25 @@
         <input type="password" id="loginPasswordInput" placeholder="Password provided by admin" required>
       </label>
       <button class="button button-bright" type="submit" id="authSubmitBtn">authorize me <span>→</span></button>
+    </form>
+  </dialog>
+
+  <dialog id="changePasswordDialog" class="task-dialog login-dialog" aria-labelledby="changePasswordTitle">
+    <button class="dialog-close" type="button" aria-label="Close dialog">×</button>
+    <div class="eyebrow"><span class="pulse"></span> ACCOUNT SECURITY</div>
+    <h2 id="changePasswordTitle">Change your password</h2>
+    <p>Use a new password with at least 12 characters. We&apos;ll email you when it changes.</p>
+    <form id="changePasswordForm">
+      <label for="currentPasswordInput">Current password
+        <input type="password" id="currentPasswordInput" autocomplete="current-password" required>
+      </label>
+      <label for="newPasswordInput">New password
+        <input type="password" id="newPasswordInput" autocomplete="new-password" minlength="12" maxlength="128" required>
+      </label>
+      <label for="confirmPasswordInput">Confirm new password
+        <input type="password" id="confirmPasswordInput" autocomplete="new-password" minlength="12" maxlength="128" required>
+      </label>
+      <button class="button button-bright" type="submit" id="changePasswordSubmit">Update password</button>
     </form>
   </dialog>
 
