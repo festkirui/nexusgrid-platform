@@ -668,6 +668,8 @@ h2 {
   margin-top: 18px;
 }
 
+.task-access-blocked { grid-column: 1 / -1; }
+
 .task-card {
   background: linear-gradient(145deg, #121a20, #0f161b);
   border: 1px solid #263239;
@@ -3135,6 +3137,7 @@ h2 {
   transition: color .2s, background .2s;
 }
 .hub-tab:hover, .hub-tab.active { color: var(--mint); }
+.hub-tab:disabled { color: #68746f; cursor: not-allowed; opacity: .65; }
 .hub-tab.active::after { position: absolute; right: 12px; bottom: -1px; left: 12px; height: 2px; background: var(--mint); content: ''; }
 .hub-task-count { display: grid; min-width: 21px; height: 21px; padding: 0 5px; place-items: center; border-radius: 20px; background: #202d2a; color: #cae8a5; font: 9px var(--mono); }
 .hub-overview { padding-top: 20px; }

@@ -154,7 +154,7 @@ async function loadAdminData() {
   try {
     const [subRes, secRes, userRes, statsRes] = await Promise.all([
       fetch('/api?action=submissions&status=pending', { headers: { Authorization: `Bearer ${adminAuthToken}` } }),
-      fetch('/api?action=security'),
+      fetch('/api?action=security', { headers: { Authorization: `Bearer ${adminAuthToken}` } }),
       fetch('/api?action=admin_list_users'),
       fetch('/api?action=admin_stats')
     ]);
@@ -523,17 +523,23 @@ function initAdminActions() {
     try {
       const res = await fetch('/api?action=security_flag', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${adminAuthToken}` },
         body: JSON.stringify(payload)
       });
 
-      if (res.ok) {
-        secForm.reset();
-        showToast('Contributor account flagged for review.');
-        loadAdminData();
+      const data = await res.json();
+      if (!res.ok) {
+        showToast(data.error || 'Could not flag this account.');
+        return;
       }
+      secForm.reset();
+      showToast(data.emailSent
+        ? 'Account flagged; the email notification was accepted for delivery.'
+        : 'Account flagged, but the email notification could not be sent.');
+      loadAdminData();
     } catch (err) {
       console.error(err);
+      showToast('Could not flag this account. Check your connection and try again.');
     }
   });
 
@@ -548,7 +554,7 @@ function initAdminActions() {
     try {
       const res = await fetch('/api?action=security_action', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${adminAuthToken}` },
         body: JSON.stringify({ email, actionType })
       });
 
