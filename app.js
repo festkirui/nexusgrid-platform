@@ -89,6 +89,7 @@ function updateAuthUI() {
   const contributorHub = document.querySelector('#contributorHub');
 
   if (currentUser && authToken) {
+    document.body.classList.add('contributor-authenticated');
     if (loginBtn) loginBtn.style.display = 'none';
     if (changePasswordButton) changePasswordButton.style.display = 'inline-flex';
     if (authStatusBadge) {
@@ -116,6 +117,7 @@ function updateAuthUI() {
     }
     renderAccount();
   } else {
+    document.body.classList.remove('contributor-authenticated');
     if (loginBtn) loginBtn.style.display = 'inline-flex';
     if (changePasswordButton) changePasswordButton.style.display = 'none';
     if (authStatusBadge) authStatusBadge.style.display = 'none';

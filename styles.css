@@ -3192,6 +3192,13 @@ h2 {
   .hub-text-link { flex-basis: 100%; margin-left: 0; text-align: left; }
 }
 
+.contributor-authenticated .hero,
+.contributor-authenticated .stats { display: none; }
+
+.contributor-authenticated .main-nav a[href="#opportunities"],
+.contributor-authenticated .main-nav a[href="#how-it-works"],
+.contributor-authenticated .nav-actions > a[href="#opportunities"] { display: none; }
+
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after {
     scroll-behavior: auto !important;
