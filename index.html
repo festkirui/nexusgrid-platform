@@ -90,8 +90,37 @@
       <p>Small details.<br><b>Meaningful progress.</b></p>
     </section>
 
+    <!-- Contributor home: progress overview and task tabs -->
+    <section class="contributor-hub section-wrap" id="contributorHub" hidden>
+      <div class="hub-heading">
+        <div>
+          <div class="eyebrow"><span class="pulse"></span> CONTRIBUTOR WORKSPACE</div>
+          <h2>Welcome back, <span id="hubUserName">contributor</span></h2>
+          <p>Your progress at a glance. Pick up a task whenever you&apos;re ready.</p>
+        </div>
+        <div class="hub-live"><span></span> YOUR WORKSPACE IS READY</div>
+      </div>
+      <div class="hub-tabs" role="tablist" aria-label="Contributor workspace">
+        <button class="hub-tab active" id="dashboardTab" type="button" role="tab" aria-selected="true" aria-controls="dashboardPanel" data-hub-tab="dashboard">Overview</button>
+        <button class="hub-tab" id="tasksTab" type="button" role="tab" aria-selected="false" aria-controls="opportunities" data-hub-tab="tasks">Available tasks <span class="hub-task-count" id="hubTaskCount">0</span></button>
+      </div>
+      <div class="hub-overview" id="dashboardPanel" role="tabpanel" aria-labelledby="dashboardTab">
+        <div class="hub-metrics">
+          <article class="hub-metric hub-metric-primary"><span class="hub-metric-icon">↗</span><small>APPROVED TASKS</small><strong id="hubGradedCount">0</strong><span>Reviewed and graded</span></article>
+          <article class="hub-metric hub-metric-cyan"><span class="hub-metric-icon">◷</span><small>IN REVIEW</small><strong id="hubPendingCount">0</strong><span>Awaiting feedback</span></article>
+          <article class="hub-metric hub-metric-violet"><span class="hub-metric-icon">$</span><small>TOTAL EARNED</small><strong id="hubEarnings">$0.00</strong><span>From approved work</span></article>
+          <article class="hub-metric hub-metric-amber"><span class="hub-metric-icon">◎</span><small>TODAY&apos;S QUOTA</small><strong id="hubDailyCount">0<span> / 2</span></strong><span id="hubDailyNote">Tasks completed today</span></article>
+        </div>
+        <article class="hub-progress-card">
+          <div class="hub-progress-copy"><div><span class="hub-section-label">REVIEW PROGRESS</span><h3>Every evaluation moves the work forward.</h3></div><strong id="hubReviewPercent">0%</strong></div>
+          <div class="hub-progress-track" role="progressbar" aria-label="Reviewed submissions" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0" id="hubReviewProgress"><span id="hubReviewBar"></span></div>
+          <div class="hub-progress-footer"><span><i class="progress-dot progress-approved"></i><b id="hubReviewedTotal">0</b> reviewed</span><span><i class="progress-dot progress-pending"></i><b id="hubReviewWaiting">0</b> awaiting review</span><button type="button" class="hub-text-link" data-hub-tab="tasks">Browse tasks <span>→</span></button></div>
+        </article>
+      </div>
+    </section>
+
     <!-- 01 / Opportunities Section — hidden until logged in -->
-    <section class="opportunities section-wrap" id="opportunities" style="display:none;">
+    <section class="opportunities section-wrap" id="opportunities" style="display:none;" role="tabpanel" aria-labelledby="tasksTab">
       <div class="section-heading">
         <div>
           <div class="eyebrow"><span class="eyebrow-mark">01 /</span> ACTIVE WORK STREAMS</div>
