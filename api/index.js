@@ -246,7 +246,28 @@ module.exports = async function handler(req, res) {
 
       // ── TASKS ──────────────────────────────────────────────────────────────
 
+      case 'task_access': {
+        if (method !== 'GET') return err(res, 405, 'Method Not Allowed');
+        const user = await findAuthenticatedUser(req);
+        if (!user || user.role !== 'contributor') return err(res, 401, 'Please sign in with an authorized contributor account.');
+        const control = await query('SELECT status, country FROM account_controls WHERE LOWER(email)=$1', [user.email.toLowerCase()]);
+        const status = control.rows[0]?.status || 'active';
+        if (['flagged', 'disabled'].includes(status)) {
+          return send(res, 403, { error: 'Task access is unavailable while your account is under security review.', status, country: control.rows[0]?.country || null });
+        }
+        return ok(res, { allowed: true });
+      }
+
       case 'tasks': {
+        const suppliedToken = (req.headers.authorization || '').match(/^Bearer\s+(\S+)$/i)?.[1] || '';
+        if (suppliedToken) {
+          const user = await findAuthenticatedUser(req, suppliedToken);
+          if (!user || user.role !== 'contributor') return err(res, 401, 'Please sign in with an authorized contributor account.');
+          const control = await query('SELECT status FROM account_controls WHERE LOWER(email)=$1', [user.email.toLowerCase()]);
+          if (['flagged', 'disabled'].includes(control.rows[0]?.status)) {
+            return err(res, 403, 'Task access is unavailable while your account is under security review.');
+          }
+        }
         const category = req.query.category || 'All';
         const sort     = req.query.sort || 'recommended';
         const search   = (req.query.search || '').trim();
@@ -346,7 +367,9 @@ module.exports = async function handler(req, res) {
         if (!taskId || !name || !email || !response) return err(res, 400, 'All evaluation fields are required.');
 
         const sr = await query('SELECT status FROM account_controls WHERE LOWER(email)=$1', [email]);
-        if (sr.rows[0]?.status === 'disabled') return err(res, 403, 'Account paused — security review in progress.');
+        if (['flagged', 'disabled'].includes(sr.rows[0]?.status)) {
+          return err(res, 403, 'Task submissions are disabled while your account is under security review.');
+        }
 
         const dr = await query("SELECT COUNT(*) FROM submissions WHERE LOWER(contributor_email)=$1 AND DATE(submitted_at)=CURRENT_DATE", [email]);
         const daily = parseInt(dr.rows[0].count);
@@ -513,6 +536,7 @@ module.exports = async function handler(req, res) {
       // ── SECURITY ───────────────────────────────────────────────────────────
 
       case 'security': {
+        if (!await findActiveAdmin(req)) return err(res, 403, 'Administrator authorization is required.');
         const { rows } = await query('SELECT email, status, country, flagged_at AS "flaggedAt" FROM account_controls ORDER BY id DESC');
         const out = {};
         for (const r of rows) out[r.email] = r;
@@ -521,23 +545,37 @@ module.exports = async function handler(req, res) {
 
       case 'security_flag': {
         if (method !== 'POST') return err(res, 405, 'Method Not Allowed');
+        if (!await findActiveAdmin(req)) return err(res, 403, 'Administrator authorization is required.');
         const b = await body(req);
-        const email = (b.email || '').toLowerCase().trim();
-        const country = (b.country || 'Unknown').trim();
-        if (!email) return err(res, 400, 'Email is required.');
-        await query("INSERT INTO account_controls (email,status,country,flagged_at) VALUES ($1,'flagged',$2,NOW()) ON CONFLICT (email) DO UPDATE SET status='flagged',country=EXCLUDED.country,flagged_at=NOW()", [email, country]);
-        return ok(res, { success:true, email, status:'flagged', country });
+        const requestedEmail = typeof b.email === 'string' ? b.email.toLowerCase().trim() : '';
+        const country = typeof b.country === 'string' && b.country.trim() ? b.country.trim().slice(0, 80) : 'Unknown';
+        if (!requestedEmail || !isValidEmail(requestedEmail)) return err(res, 400, 'A valid email is required.');
+        const { rows: contributors } = await query("SELECT name, email FROM users WHERE LOWER(email)=$1 AND role='contributor' LIMIT 1", [requestedEmail]);
+        const contributor = contributors[0];
+        if (!contributor) return err(res, 404, 'No contributor account was found for that email.');
+        const email = contributor.email.toLowerCase();
+        await query("INSERT INTO account_controls (email,status,country,flagged_at,updated_at) VALUES ($1,'flagged',$2,NOW(),NOW()) ON CONFLICT (email) DO UPDATE SET status='flagged',country=EXCLUDED.country,flagged_at=NOW(),updated_at=NOW()", [email, country]);
+        const emailSent = await sendAccountEmail(
+          email,
+          'Your NexusGrid account is under security review',
+          `Hello ${contributor.name},\n\nYour NexusGrid contributor account has been flagged for a security review${country ? ` related to an alert from ${country}` : ''}. While the review is pending, access to tasks and task submissions is disabled.\n\nIf you believe this is a mistake, please contact NexusGrid support.`
+        );
+        return ok(res, { success:true, email, status:'flagged', country, emailSent });
       }
 
       case 'security_action': {
         if (method !== 'POST') return err(res, 405, 'Method Not Allowed');
+        if (!await findActiveAdmin(req)) return err(res, 403, 'Administrator authorization is required.');
         const b = await body(req);
-        const email = (b.email || '').toLowerCase().trim();
-        const type  = (b.actionType || '').trim();
+        const email = typeof b.email === 'string' ? b.email.toLowerCase().trim() : '';
+        const type  = typeof b.actionType === 'string' ? b.actionType.trim() : '';
+        if (!email || !isValidEmail(email)) return err(res, 400, 'A valid email is required.');
         if (type === 'clear') {
           await query('DELETE FROM account_controls WHERE LOWER(email)=$1', [email]);
         } else if (type === 'disable' || type === 'restore') {
-          await query('UPDATE account_controls SET status=$1 WHERE LOWER(email)=$2', [type==='disable'?'disabled':'active', email]);
+          await query('UPDATE account_controls SET status=$1, updated_at=NOW() WHERE LOWER(email)=$2', [type==='disable'?'disabled':'active', email]);
+        } else {
+          return err(res, 400, 'Invalid account action.');
         }
         return ok(res, { success:true });
       }
@@ -662,7 +700,7 @@ module.exports = async function handler(req, res) {
         return ok(res, {
           name: 'NexusGrid API', version: '3.0.0', runtime: 'Node.js / Vercel Serverless',
           database: 'Supabase PostgreSQL',
-          endpoints: ['login','logout','current_user','admin_add_user','admin_list_users','admin_stats','admin_toggle_user','admin_notify','tasks','create_task','submissions','create_submission','grade','account','save_payment_method','delete_payment_method','get_payment_methods','verify','security','security_flag','security_action','work_streams','assessment_test','submit_assessment']
+          endpoints: ['login','logout','current_user','admin_add_user','admin_list_users','admin_stats','admin_toggle_user','admin_notify','tasks','task_access','create_task','submissions','create_submission','grade','account','save_payment_method','delete_payment_method','get_payment_methods','verify','security','security_flag','security_action','work_streams','assessment_test','submit_assessment']
         });
     }
   } catch (e) {

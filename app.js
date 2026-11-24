@@ -2,6 +2,7 @@
 // Dedicated logic for index.php connecting with /api & WampServer MySQL
 
 let tasks = [];
+let taskAccessBlocked = false;
 let selectedFilter = 'All';
 let shownCount = 12;
 const pageSize = 12;
@@ -62,6 +63,10 @@ function showToast(message) {
 // -----------------------------------------------------------------------------
 
 function setContributorTab(tabName) {
+  if (tabName === 'tasks' && taskAccessBlocked) {
+    showToast('Task access is paused while your account is under security review.');
+    tabName = 'dashboard';
+  }
   activeContributorTab = tabName;
   const dashboardPanel = document.querySelector('#dashboardPanel');
   const opportunitiesSection = document.querySelector('#opportunities');
@@ -267,8 +272,33 @@ document.querySelector('#heroExploreBtn')?.addEventListener('click', () => {
 async function fetchTasks() {
   try {
     const sort = document.querySelector('#sortSelect')?.value || 'recommended';
-    const res = await fetch(`/api?action=tasks&sort=${sort}`);
+    const headers = authToken ? { Authorization: `Bearer ${authToken}` } : {};
+    const res = await fetch(`/api?action=tasks&sort=${sort}`, { headers });
     const data = await res.json();
+    if (!res.ok) {
+      if (res.status === 403) {
+        taskAccessBlocked = true;
+        const tasksTab = document.querySelector('#tasksTab');
+        if (tasksTab) {
+          tasksTab.disabled = true;
+          tasksTab.setAttribute('aria-disabled', 'true');
+          tasksTab.title = 'Task access is paused while your account is under security review.';
+        }
+        if (activeContributorTab === 'tasks') setContributorTab('dashboard');
+        tasks = [];
+        renderCategoryFilters({});
+        renderTasks();
+        return;
+      }
+      throw new Error(data.error || 'Unable to load tasks.');
+    }
+    taskAccessBlocked = false;
+    const tasksTab = document.querySelector('#tasksTab');
+    if (tasksTab) {
+      tasksTab.disabled = false;
+      tasksTab.setAttribute('aria-disabled', 'false');
+      tasksTab.removeAttribute('title');
+    }
     tasks = data.tasks || [];
     renderCategoryFilters(data.counts || {});
     renderTasks();
@@ -359,7 +389,9 @@ function renderTasks() {
 
   const shown = visible.slice(0, shownCount);
 
-  grid.innerHTML = shown.map(task => {
+  grid.innerHTML = taskAccessBlocked
+    ? '<p class="empty-state task-access-blocked" role="status">Task access is paused while your account is under security review. Please contact support for next steps.</p>'
+    : shown.map(task => {
     const meta = getStreamMeta(task.stream_id);
     return `
     <article class="task-card" data-stream="${escapeHtml(task.stream_id || '')}">
@@ -407,8 +439,48 @@ function renderTasks() {
 }
 
 // Open Task Details Modal (Checks Authorization & Renders NexusGrid Alignment View)
-function openTask(task) {
+async function openTask(task) {
   if (!dialogContent || !taskDialog) return;
+  if (taskAccessBlocked || ['flagged', 'disabled'].includes(userAccountData?.security?.status)) {
+    showToast('Task access is paused while your account is under security review.');
+    return;
+  }
+
+  if (currentUser && authToken) {
+    try {
+      const accessRes = await fetch('/api?action=task_access', {
+        headers: { Authorization: `Bearer ${authToken}` }
+      });
+      const access = await accessRes.json();
+      if (!accessRes.ok) {
+        if (accessRes.status === 403) {
+          taskAccessBlocked = true;
+          const tasksTab = document.querySelector('#tasksTab');
+          if (tasksTab) {
+            tasksTab.disabled = true;
+            tasksTab.setAttribute('aria-disabled', 'true');
+          }
+          if (userAccountData) {
+            userAccountData.security = { status: access.status || 'flagged', country: access.country || null };
+          }
+          const securityNotice = document.querySelector('#accountSecurityState');
+          if (securityNotice) {
+            securityNotice.hidden = false;
+            securityNotice.textContent = `Your account is flagged for review${access.country ? ` after a security alert from ${access.country}` : ''}. Task access and submissions are disabled while the review is pending. Please contact support if you believe this is a mistake.`;
+          }
+          tasks = [];
+          renderTasks();
+          setContributorTab('dashboard');
+        }
+        showToast(access.error || 'Task access could not be verified.');
+        return;
+      }
+    } catch (error) {
+      console.error('Task access check failed:', error);
+      showToast('Could not verify task access. Please try again.');
+      return;
+    }
+  }
 
   const isAuth = !!(currentUser && authToken);
   const streamId = task.stream_id || 'PREFERENCE_RANKING';
@@ -803,6 +875,22 @@ async function renderAccount() {
     const acc = await accRes.json();
     const subs = await subRes.json();
     userAccountData = acc;
+    taskAccessBlocked = ['flagged', 'disabled'].includes(acc.security?.status);
+    const tasksTab = document.querySelector('#tasksTab');
+    if (tasksTab) {
+      tasksTab.disabled = taskAccessBlocked;
+      tasksTab.setAttribute('aria-disabled', String(taskAccessBlocked));
+      if (taskAccessBlocked) {
+        tasksTab.title = 'Task access is paused while your account is under security review.';
+      } else {
+        tasksTab.removeAttribute('title');
+      }
+    }
+    if (taskAccessBlocked) {
+      tasks = [];
+      renderTasks();
+      if (activeContributorTab === 'tasks') setContributorTab('dashboard');
+    }
 
     // Load payment methods for this user
     loadPaymentMethods(email);
@@ -822,12 +910,9 @@ async function renderAccount() {
     // Security Notice
     const securityNotice = document.querySelector('#accountSecurityState');
     if (securityNotice) {
-      if (acc.security && acc.security.status === 'disabled') {
+      if (acc.security && ['flagged', 'disabled'].includes(acc.security.status)) {
         securityNotice.hidden = false;
-        securityNotice.textContent = `Account paused: a security alert from ${acc.security.country || 'an unfamiliar country'} is under review. Submissions are temporarily disabled.`;
-      } else if (acc.security && acc.security.status === 'flagged') {
-        securityNotice.hidden = false;
-        securityNotice.textContent = `Security review pending: an unfamiliar-country alert was recorded for ${acc.security.country || 'this account'}.`;
+        securityNotice.textContent = `Your account is ${acc.security.status === 'flagged' ? 'flagged for review' : 'paused'}${acc.security.country ? ` after a security alert from ${acc.security.country}` : ''}. Task access and submissions are disabled while the review is pending. Please contact support if you believe this is a mistake.`;
       } else {
         securityNotice.hidden = true;
       }
