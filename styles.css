@@ -1703,6 +1703,36 @@ h2 {
 .login-dialog,
 .verification-dialog {
   width: min(480px, calc(100% - 30px));
+  }
+
+#changePasswordButton {
+  margin-left: auto;
+}
+
+#changePasswordDialog {
+  max-height: calc(100dvh - 24px);
+  padding: 22px 30px;
+}
+
+#changePasswordDialog form {
+  display: grid;
+  gap: 12px;
+  margin-top: 16px;
+}
+
+#changePasswordDialog label {
+  display: grid;
+  gap: 7px;
+  color: #b8c4be;
+  font-size: 11px;
+}
+
+#changePasswordDialog input {
+  padding: 12px;
+  background: #0b1115;
+  border: 1px solid #354047;
+  border-radius: 4px;
+  color: white;
 }
 
 .task-dialog::backdrop {
